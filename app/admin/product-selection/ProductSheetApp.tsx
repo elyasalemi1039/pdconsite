@@ -48,7 +48,8 @@ export default function ProductSheetApp() {
 
   const productsByArea = useMemo(() => {
     return products.reduce<Record<string, ApiProduct[]>>((acc, p) => {
-      acc[p.area] = acc[p.area] ? [...acc[p.area], p] : [p];
+      const key = p.area?.name || "Other";
+      acc[key] = acc[key] ? [...acc[key], p] : [p];
       return acc;
     }, {});
   }, [products]);
