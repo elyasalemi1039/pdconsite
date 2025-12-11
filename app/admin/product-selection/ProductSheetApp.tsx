@@ -92,17 +92,26 @@ export default function ProductSheetApp() {
     return () => controller.abort();
   }, [search]);
 
-  const toggleSelect = (p: ApiProduct) => {
+  const toggleSelect = (p: ApiProduct | SelectedProduct) => {
+    const areaName =
+      "area" in p ? (p.area?.name || "Other") : p.areaName || "Other";
+    const id = p.id;
     setSelected((prev) => {
-      const exists = prev.find((s) => s.id === p.id);
+      const exists = prev.find((s) => s.id === id);
       if (exists) {
-        return prev.filter((s) => s.id !== p.id);
+        return prev.filter((s) => s.id !== id);
       }
       return [
         ...prev,
         {
-          ...p,
-          areaName: p.area?.name || "Other",
+          id: p.id,
+          code: p.code,
+          description: p.description,
+          manufacturerDescription: p.manufacturerDescription,
+          productDetails: p.productDetails,
+          price: p.price,
+          imageUrl: p.imageUrl,
+          areaName,
           quantity: "",
           notes: "",
         },
