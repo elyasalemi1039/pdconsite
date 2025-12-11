@@ -17,20 +17,7 @@ export async function GET(request: Request) {
       q.trim().length === 0
         ? {}
         : {
-            OR: [
-              { code: { contains: q, mode: "insensitive" as const } },
-              { description: { contains: q, mode: "insensitive" as const } },
-              {
-                manufacturerDescription: {
-                  contains: q,
-                  mode: "insensitive" as const,
-                },
-              },
-              {
-                productDetails: { contains: q, mode: "insensitive" as const },
-              },
-              { area: { name: { contains: q, mode: "insensitive" as const } } },
-            ],
+            code: { contains: q, mode: "insensitive" as const },
           };
 
     const products = await prisma.product.findMany({

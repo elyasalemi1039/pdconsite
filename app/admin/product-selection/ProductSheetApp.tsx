@@ -54,43 +54,35 @@ export default function ProductSheetApp() {
     }, {});
   }, [products]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    const fetchProducts = async () => {
-      setLoadingProducts(true);
-      try {
-        if (search.trim().length < 2) {
-          setProducts([]);
-          return;
-        }
-        const resp = await fetch(
-          `/api/admin/products${search ? `?q=${encodeURIComponent(search)}` : ""}`,
-          { signal: controller.signal }
-        );
-        if (!resp.ok) {
-          const errBody = await resp.json().catch(() => ({}));
-          throw new Error(
-            errBody?.error ||
-              errBody?.details ||
-              `Failed to fetch products (${resp.status})`
-          );
-        }
-        const data = await resp.json();
-        setProducts(data.products || []);
-      } catch (err) {
-        if (!(err instanceof DOMException && err.name === "AbortError")) {
-          setMessage({
-            type: "error",
-            text: err instanceof Error ? err.message : "Failed to fetch products",
-          });
-        }
-      } finally {
-        setLoadingProducts(false);
+  const fetchProducts = async () => {
+    setLoadingProducts(true);
+    try {
+      if (search.trim().length < 2) {
+        setProducts([]);
+        return;
       }
-    };
-    fetchProducts();
-    return () => controller.abort();
-  }, [search]);
+      const resp = await fetch(
+        `/api/admin/products${search ? `?q=${encodeURIComponent(search)}` : ""}`
+      );
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(
+          errBody?.error ||
+            errBody?.details ||
+            `Failed to fetch products (${resp.status})`
+        );
+      }
+      const data = await resp.json();
+      setProducts(data.products || []);
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to fetch products",
+      });
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
 
   const toggleSelect = (p: ApiProduct | SelectedProduct) => {
     const areaName =
@@ -291,15 +283,25 @@ export default function ProductSheetApp() {
         <div className="card">
           <div className="flex justify-between items-center mb-4">
             <h2 className="card-title" style={{ margin: 0 }}>
-              📦 Products from database (search by code/description)
+              📦 Products from database (search by code)
             </h2>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Type at least 2 chars to search..."
-              style={{ minWidth: "260px" }}
-            />
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Enter code and search"
+                style={{ minWidth: "220px" }}
+              />
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                onClick={fetchProducts}
+                disabled={loadingProducts}
+              >
+                Search
+              </button>
+            </div>
           </div>
 
           {loadingProducts && <p className="text-sm text-gray-500">Loading products...</p>}
@@ -321,19 +323,8 @@ export default function ProductSheetApp() {
                       key={product.id}
                       className="flex items-center justify-between border border-slate-200 rounded px-3 py-2 text-sm"
                     >
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-slate-800">
-                          {product.code}
-                        </div>
-                        <div className="text-slate-600 truncate">
-                          {product.description}
-                        </div>
-                        {typeof product.price === "number" &&
-                          Number.isFinite(product.price) && (
-                            <div className="text-slate-900 font-semibold">
-                              ${product.price.toFixed(2)}
-                            </div>
-                          )}
+                      <div className="flex-1 min-w-0 font-semibold text-slate-800">
+                        {product.code}
                       </div>
                       <button
                         className="btn-secondary btn-sm"

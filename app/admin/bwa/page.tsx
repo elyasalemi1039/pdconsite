@@ -17,6 +17,43 @@ export default function BwaPage() {
     { id: crypto.randomUUID(), code: "", manufacturerDescription: "", price: "", imageUrl: "", notes: "" },
   ]);
   const [saving, setSaving] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+
+  const handleFile = async (file: File) => {
+    setExtracting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/admin/bwa/extract", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data?.error || "Failed to extract");
+      } else {
+        const imported =
+          (data.rows || []).map((r: any) => ({
+            id: crypto.randomUUID(),
+            code: r.code || "",
+            manufacturerDescription: r.manufacturerDescription || "",
+            price: r.price || "",
+            imageUrl: r.imageUrl || "",
+            notes: "",
+          })) || [];
+        if (imported.length === 0) {
+          toast.error("No rows detected in PDF.");
+        } else {
+          setRows(imported);
+          toast.success(`Imported ${imported.length} rows from PDF`);
+        }
+      }
+    } catch {
+      toast.error("Failed to extract");
+    } finally {
+      setExtracting(false);
+    }
+  };
 
   const update = (id: string, field: keyof Row, value: string) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
@@ -79,6 +116,18 @@ export default function BwaPage() {
         <p className="text-sm text-slate-600">
           Columns: Product Code → code, Product Name → manufacturer description, Unit Price (EX GST) → price. Edit rows then add to system.
         </p>
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4 flex items-center gap-3">
+          <input
+            type="file"
+            accept="application/pdf"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFile(file);
+            }}
+            className="text-sm"
+          />
+          {extracting && <span className="text-sm text-slate-500">Extracting...</span>}
+        </div>
 
         <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
           <div className="grid grid-cols-[1.5fr,2fr,1fr,2fr,1fr] gap-3 text-sm font-semibold text-slate-600 mb-2">

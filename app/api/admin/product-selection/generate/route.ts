@@ -33,6 +33,9 @@ const CATEGORY_ORDER = [
   "Other",
 ];
 
+const PLACEHOLDER_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="; // 1x1 png
+
 function formatDate(input?: string) {
   const parsed = input ? new Date(input) : new Date();
   if (Number.isNaN(parsed.getTime())) return "";
@@ -146,7 +149,7 @@ export async function POST(req: Request) {
     const base64 =
       raw?.image && raw.image.length > 10
         ? raw.image
-        : await fetchImageAsBase64(raw?.imageUrl);
+        : await fetchImageAsBase64(raw?.imageUrl) || PLACEHOLDER_BASE64;
 
     productsByCategory[category].push({
       code: raw?.code || "",
