@@ -129,7 +129,6 @@ export default function CreateProductForm() {
         const compressedFile = await imageCompression(form.imageFile!, options);
 
         const formData = new FormData();
-        formData.append("name", form.name.trim());
         formData.append("code", form.code.trim());
         formData.append("areaId", form.areaId);
         formData.append("description", form.description.trim());
