@@ -48,10 +48,9 @@ export async function POST(request: Request) {
     const code = formData.get("code")?.toString() || "";
     const areaId = formData.get("areaId")?.toString() || "";
     const description = formData.get("description")?.toString() || "";
-    const manufacturerDescription =
-      formData.get("manufacturerDescription")?.toString() || "";
     const productDetails = formData.get("productDetails")?.toString() || "";
     const priceRaw = formData.get("price")?.toString() || "";
+    const link = formData.get("link")?.toString() || "";
     const image = formData.get("image") as File | null;
 
     if (!code.trim()) {
@@ -100,10 +99,10 @@ export async function POST(request: Request) {
         code,
         areaId: area.id,
         description,
-        manufacturerDescription: manufacturerDescription || null,
         productDetails: productDetails || null,
         price: price !== null && !Number.isNaN(price) ? price : null,
         imageUrl: getPublicUrl(key),
+        link: link || null,
       },
       include: { area: true },
     });

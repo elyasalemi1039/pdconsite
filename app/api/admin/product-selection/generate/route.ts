@@ -13,7 +13,6 @@ type IncomingProduct = {
   category?: string;
   code?: string;
   description?: string;
-  manufacturerDescription?: string;
   productDetails?: string;
   areaDescription?: string;
   quantity?: string;
@@ -21,6 +20,7 @@ type IncomingProduct = {
   notes?: string;
   image?: string | null; // base64
   imageUrl?: string | null; // public URL to fetch
+  link?: string | null; // product link for hyperlink
 };
 
 const CATEGORY_ORDER = [
@@ -100,7 +100,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const hasImages = products.some((p: IncomingProduct) => p?.image);
+  const hasImages = products.some((p: IncomingProduct) => p?.image || p?.imageUrl);
 
   const modules = hasImages
     ? [
@@ -154,13 +154,13 @@ export async function POST(req: Request) {
     productsByCategory[category].push({
       code: raw?.code || "",
       description: raw?.description || "",
-      "manufacturer-description": raw?.manufacturerDescription || "",
       "product-details": raw?.productDetails || "",
       "area-description": raw?.areaDescription || "",
       quantity: raw?.quantity || "",
       price: raw?.price || "",
       notes: raw?.notes || "",
       image: base64 || "",
+      link: raw?.link || "",
     });
   }
 

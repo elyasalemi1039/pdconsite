@@ -25,17 +25,17 @@ model Asset {
 }
 
 model Product {
-  id                      String   @id @default(cuid())
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  code                    String   @unique
-  areaId                  String
-  area                    Area     @relation(fields: [areaId], references: [id])
-  description             String
-  manufacturerDescription String?
-  productDetails          String?
-  price                   Decimal? @db.Decimal(10, 2)
-  imageUrl                String
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  code           String   @unique
+  areaId         String
+  area           Area     @relation(fields: [areaId], references: [id])
+  description    String
+  productDetails String?
+  price          Decimal? @db.Decimal(10, 2)
+  imageUrl       String
+  link           String?
 }
 
 model Area {

@@ -6,11 +6,11 @@ type ApiProduct = {
   id: string;
   code: string;
   description: string;
-  manufacturerDescription: string | null;
   productDetails: string | null;
   price: number | null;
   imageUrl: string;
   area: { id: string; name: string };
+  link: string | null;
 };
 
 type SelectedProduct = {
@@ -18,12 +18,14 @@ type SelectedProduct = {
   code: string;
   areaName: string;
   description: string;
-  manufacturerDescription: string | null;
   productDetails: string | null;
   price: number | null;
+  overridePrice: string;
   imageUrl: string;
   quantity: string;
   notes: string;
+  areaDescription: string;
+  link: string | null;
 };
 
 type Message = { type: "success" | "error"; text: string };
@@ -93,27 +95,42 @@ export default function ProductSheetApp() {
       if (exists) {
         return prev.filter((s) => s.id !== id);
       }
+      const link = "link" in p ? p.link : null;
       return [
         ...prev,
         {
           id: p.id,
           code: p.code,
           description: p.description,
-          manufacturerDescription: p.manufacturerDescription,
           productDetails: p.productDetails,
           price: p.price,
+          overridePrice: "",
           imageUrl: p.imageUrl,
           areaName,
           quantity: "",
           notes: "",
+          areaDescription: "",
+          link,
         },
       ];
     });
   };
 
+  // Live search with debounce
+  useEffect(() => {
+    if (search.trim().length < 2) {
+      setProducts([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      fetchProducts();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const updateSelected = (
     id: string,
-    field: keyof Pick<SelectedProduct, "quantity" | "notes">,
+    field: keyof Pick<SelectedProduct, "quantity" | "notes" | "overridePrice" | "areaDescription">,
     value: string
   ) => {
     setSelected((prev) =>
@@ -128,19 +145,25 @@ export default function ProductSheetApp() {
   };
 
   const buildPayloadProducts = () =>
-    selected.map((p) => ({
-      category: p.areaName,
-      code: p.code,
-      description: p.description,
-      manufacturerDescription: p.manufacturerDescription,
-      productDetails: p.productDetails,
-      areaDescription: p.areaName,
-      quantity: p.quantity,
-      price: p.price?.toString() ?? "",
-      notes: p.notes,
-      image: null,
-      imageUrl: p.imageUrl,
-    }));
+    selected.map((p) => {
+      // Use override price if provided, otherwise use the original price
+      const finalPrice = p.overridePrice.trim() 
+        ? p.overridePrice.trim() 
+        : (p.price?.toString() ?? "");
+      return {
+        category: p.areaName,
+        code: p.code,
+        description: p.description,
+        productDetails: p.productDetails,
+        areaDescription: p.areaDescription || p.areaName,
+        quantity: p.quantity,
+        price: finalPrice,
+        notes: p.notes,
+        image: null,
+        imageUrl: p.imageUrl,
+        link: p.link || "",
+      };
+    });
 
   const generateDocument = async () => {
     const error = validate();
@@ -290,17 +313,10 @@ export default function ProductSheetApp() {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Enter code and search"
+                placeholder="Type to search..."
                 style={{ minWidth: "220px" }}
               />
-              <button
-                type="button"
-                className="btn-secondary btn-sm"
-                onClick={fetchProducts}
-                disabled={loadingProducts}
-              >
-                Search
-              </button>
+              {loadingProducts && <span className="text-sm text-gray-500">⏳</span>}
             </div>
           </div>
 
@@ -342,37 +358,83 @@ export default function ProductSheetApp() {
 
         {selected.length > 0 && (
           <div className="card">
-            <h2 className="card-title">✅ Selected products</h2>
-            <div className="space-y-2">
+            <h2 className="card-title">✅ Selected products ({selected.length})</h2>
+            <div className="selected-products-list">
               {selected.map((item) => (
                 <div
                   key={item.id}
-                  className="flex flex-wrap items-center gap-3 border border-slate-200 rounded px-3 py-2 text-sm"
+                  className="selected-product-item"
                 >
-                  <div className="font-semibold text-slate-800">
-                    {item.code}
+                  <div className="selected-product-header">
+                    <div className="selected-product-info">
+                      <span className="selected-product-code">{item.code}</span>
+                      <span className="selected-product-desc">{item.description}</span>
+                      {item.price && (
+                        <span className="selected-product-original-price">
+                          DB Price: ${item.price.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      className="btn-danger btn-sm"
+                      onClick={() => toggleSelect(item)}
+                    >
+                      ✕ Remove
+                    </button>
                   </div>
-                  <div className="text-slate-600 flex-1 min-w-[180px] truncate">
-                    {item.description}
+                  <div className="selected-product-fields">
+                    <div className="field-group">
+                      <label>Area Description *</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Master Bedroom, Kitchen Island"
+                        value={item.areaDescription}
+                        onChange={(e) => updateSelected(item.id, "areaDescription", e.target.value)}
+                      />
+                    </div>
+                    <div className="field-group field-small">
+                      <label>Qty</label>
+                      <input
+                        type="text"
+                        placeholder="Qty"
+                        value={item.quantity}
+                        onChange={(e) => updateSelected(item.id, "quantity", e.target.value)}
+                      />
+                    </div>
+                    <div className="field-group field-small">
+                      <label>Override Price</label>
+                      <div className="price-input-wrapper">
+                        <span className="price-prefix">$</span>
+                        <input
+                          type="text"
+                          placeholder={item.price ? item.price.toFixed(2) : "0.00"}
+                          value={item.overridePrice}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            let cleaned = raw.replace(/[^\d.]/g, "");
+                            const parts = cleaned.split(".");
+                            if (parts.length > 2) {
+                              cleaned = `${parts[0]}.${parts.slice(1).join("")}`;
+                            }
+                            if (cleaned.includes(".")) {
+                              const [int, dec] = cleaned.split(".");
+                              cleaned = `${int}.${(dec || "").slice(0, 2)}`;
+                            }
+                            updateSelected(item.id, "overridePrice", cleaned);
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="field-group field-notes">
+                      <label>Notes</label>
+                      <input
+                        type="text"
+                        placeholder="Additional notes..."
+                        value={item.notes}
+                        onChange={(e) => updateSelected(item.id, "notes", e.target.value)}
+                      />
+                    </div>
                   </div>
-                  <input
-                    className="w-24 rounded border border-slate-300 px-2 py-1"
-                    placeholder="Qty"
-                    value={item.quantity}
-                    onChange={(e) => updateSelected(item.id, "quantity", e.target.value)}
-                  />
-                  <input
-                    className="flex-1 min-w-[160px] rounded border border-slate-300 px-2 py-1"
-                    placeholder="Notes"
-                    value={item.notes}
-                    onChange={(e) => updateSelected(item.id, "notes", e.target.value)}
-                  />
-                  <button
-                    className="btn-danger btn-sm"
-                    onClick={() => toggleSelect(item)}
-                  >
-                    ✕
-                  </button>
                 </div>
               ))}
             </div>
@@ -620,6 +682,115 @@ export default function ProductSheetApp() {
           padding: 0.25rem 0;
         }
 
+        .selected-products-list {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .selected-product-item {
+          background: #fafafa;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 1rem;
+        }
+
+        .selected-product-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 0.75rem;
+          padding-bottom: 0.75rem;
+          border-bottom: 1px solid #e2e8f0;
+        }
+
+        .selected-product-info {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .selected-product-code {
+          font-weight: 700;
+          font-size: 1rem;
+          color: #1e293b;
+          background: #e2e8f0;
+          padding: 0.25rem 0.5rem;
+          border-radius: 4px;
+        }
+
+        .selected-product-desc {
+          color: #475569;
+          font-size: 0.875rem;
+        }
+
+        .selected-product-original-price {
+          color: #64748b;
+          font-size: 0.75rem;
+          background: #f1f5f9;
+          padding: 0.125rem 0.375rem;
+          border-radius: 3px;
+        }
+
+        .selected-product-fields {
+          display: grid;
+          grid-template-columns: 1fr 80px 120px 1fr;
+          gap: 0.75rem;
+          align-items: end;
+        }
+
+        .field-group {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .field-group label {
+          font-size: 0.75rem;
+          font-weight: 500;
+          color: #64748b;
+        }
+
+        .field-group input {
+          padding: 0.5rem 0.75rem;
+          border: 1px solid #cbd5e1;
+          border-radius: 4px;
+          font-size: 0.875rem;
+          width: 100%;
+        }
+
+        .field-group input:focus {
+          outline: none;
+          border-color: #0066cc;
+          box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+        }
+
+        .field-small {
+          min-width: 80px;
+        }
+
+        .field-notes {
+          min-width: 160px;
+        }
+
+        .price-input-wrapper {
+          position: relative;
+        }
+
+        .price-input-wrapper .price-prefix {
+          position: absolute;
+          left: 0.5rem;
+          top: 50%;
+          transform: translateY(-50%);
+          color: #64748b;
+          font-size: 0.875rem;
+        }
+
+        .price-input-wrapper input {
+          padding-left: 1.25rem;
+        }
+
         @media (max-width: 768px) {
           .grid-3 {
             grid-template-columns: 1fr;
@@ -627,6 +798,9 @@ export default function ProductSheetApp() {
           .field.span-2,
           .field.span-3 {
             grid-column: span 1;
+          }
+          .selected-product-fields {
+            grid-template-columns: 1fr 1fr;
           }
         }
       `}</style>
