@@ -10,7 +10,6 @@ type IncomingProduct = {
   category?: string;
   code?: string;
   description?: string;
-  manufacturerDescription?: string;
   productDetails?: string;
   areaDescription?: string;
   quantity?: string;
@@ -18,6 +17,7 @@ type IncomingProduct = {
   notes?: string;
   image?: string | null;
   imageUrl?: string | null;
+  link?: string | null;
 };
 
 function buildProductDetails(p: IncomingProduct) {
@@ -65,13 +65,9 @@ export async function POST(req: Request) {
         (await prisma.area.findFirst({ where: { name: areaName } })) ||
         (await prisma.area.create({ data: { name: areaName || "Other" } }));
 
-      const description =
-        raw?.description?.trim() ||
-        raw?.manufacturerDescription?.trim() ||
-        code;
-      const manufacturerDescription =
-        raw?.manufacturerDescription?.trim() || null;
+      const description = raw?.description?.trim() || code;
       const productDetails = buildProductDetails(raw);
+      const link = raw?.link?.trim() || null;
 
       const priceNumber = raw?.price ? Number.parseFloat(raw.price) : NaN;
       const price =
@@ -101,10 +97,10 @@ export async function POST(req: Request) {
           code,
           areaId: area.id,
           description,
-          manufacturerDescription,
           productDetails,
           price,
           imageUrl,
+          link,
         },
       });
 
