@@ -38,13 +38,12 @@ export default async function ViewProductsPage() {
             <thead>
               <tr className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <th className="p-3">Code</th>
-                <th className="p-3">Code</th>
                 <th className="p-3">Image</th>
                 <th className="p-3">Description</th>
-                <th className="p-3">Manufacturer</th>
                 <th className="p-3">Product Details</th>
                 <th className="p-3">Area</th>
                 <th className="p-3">Price</th>
+                <th className="p-3">Link</th>
                 <th className="p-3">Created</th>
               </tr>
             </thead>
@@ -64,13 +63,17 @@ export default async function ViewProductsPage() {
                     )}
                   </td>
                   <td className="p-3">{p.description}</td>
-                  <td className="p-3">
-                    {p.manufacturerDescription || "—"}
-                  </td>
                   <td className="p-3">{p.productDetails || "—"}</td>
                   <td className="p-3">{p.area?.name || "—"}</td>
                   <td className="p-3">
                     {p.price !== null ? `$${p.price?.toString()}` : "—"}
+                  </td>
+                  <td className="p-3">
+                    {p.link ? (
+                      <a href={p.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate block max-w-[150px]">
+                        {p.link}
+                      </a>
+                    ) : "—"}
                   </td>
                   <td className="p-3 text-xs text-slate-500">
                     {p.createdAt.toISOString().slice(0, 10)}
@@ -80,7 +83,7 @@ export default async function ViewProductsPage() {
               {products.length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={8}
                     className="p-4 text-sm text-slate-500 text-center"
                   >
                     No products found.
