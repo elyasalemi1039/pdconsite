@@ -21,12 +21,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ products });
     }
 
-    // Simple search by code only
+    // Search by code, brand, nickname, or keywords
     const where =
       q.trim().length === 0
         ? {}
         : {
-            code: { contains: q, mode: "insensitive" as const },
+            OR: [
+              { code: { contains: q, mode: "insensitive" as const } },
+              { brand: { contains: q, mode: "insensitive" as const } },
+              { nickname: { contains: q, mode: "insensitive" as const } },
+              { keywords: { contains: q, mode: "insensitive" as const } },
+            ],
           };
 
     const products = await prisma.product.findMany({
@@ -59,6 +64,9 @@ export async function POST(request: Request) {
     const productDetails = formData.get("productDetails")?.toString() || "";
     const priceRaw = formData.get("price")?.toString() || "";
     const link = formData.get("link")?.toString() || "";
+    const brand = formData.get("brand")?.toString() || "";
+    const nickname = formData.get("nickname")?.toString() || "";
+    const keywords = formData.get("keywords")?.toString() || "";
     const image = formData.get("image") as File | null;
 
     if (!code.trim()) {
@@ -84,21 +92,20 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!image) {
-      return NextResponse.json(
-        { error: "Image is required." },
-        { status: 400 }
-      );
+    let imageUrl = "/no-image.png"; // Default placeholder
+
+    if (image && image.size > 0) {
+      const buffer = Buffer.from(await image.arrayBuffer());
+      const key = `products/${code}-${Date.now()}-${image.name || "image"}`;
+
+      await uploadToR2({
+        key,
+        body: buffer,
+        contentType: image.type || "application/octet-stream",
+      });
+
+      imageUrl = getPublicUrl(key);
     }
-
-    const buffer = Buffer.from(await image.arrayBuffer());
-    const key = `products/${code}-${Date.now()}-${image.name || "image"}`;
-
-    await uploadToR2({
-      key,
-      body: buffer,
-      contentType: image.type || "application/octet-stream",
-    });
 
     const price = priceRaw ? Number(priceRaw) : null;
 
@@ -109,8 +116,11 @@ export async function POST(request: Request) {
         description,
         productDetails: productDetails || null,
         price: price !== null && !Number.isNaN(price) ? price : null,
-        imageUrl: getPublicUrl(key),
+        imageUrl,
         link: link || null,
+        brand: brand || null,
+        nickname: nickname || null,
+        keywords: keywords || null,
       },
       include: { area: true },
     });

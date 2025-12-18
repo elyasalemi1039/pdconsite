@@ -11,6 +11,9 @@ type ApiProduct = {
   imageUrl: string;
   area: { id: string; name: string };
   link: string | null;
+  brand: string | null;
+  nickname: string | null;
+  keywords: string | null;
 };
 
 type SelectedProduct = {
@@ -43,6 +46,7 @@ export default function ProductSheetApp() {
   const [company, setCompany] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
+  const [includePrice, setIncludePrice] = useState(true);
 
   const [search, setSearch] = useState("");
   const [allProducts, setAllProducts] = useState<ApiProduct[]>([]);
@@ -83,7 +87,10 @@ export default function ProductSheetApp() {
     return allProducts.filter((p) => {
       const codeMatch = p.code.toLowerCase().includes(q);
       const descMatch = p.description.toLowerCase().includes(q);
-      return codeMatch || descMatch;
+      const brandMatch = p.brand?.toLowerCase().includes(q) || false;
+      const nicknameMatch = p.nickname?.toLowerCase().includes(q) || false;
+      const keywordsMatch = p.keywords?.toLowerCase().includes(q) || false;
+      return codeMatch || descMatch || brandMatch || nicknameMatch || keywordsMatch;
     });
   }, [allProducts, search]);
 
@@ -155,7 +162,7 @@ export default function ProductSheetApp() {
         productDetails: p.productDetails,
         areaDescription: p.areaDescription || p.areaName,
         quantity: p.quantity,
-        price: finalPrice,
+        price: includePrice ? finalPrice : "",
         notes: p.notes,
         image: null,
         imageUrl: p.imageUrl,
@@ -187,6 +194,7 @@ export default function ProductSheetApp() {
           phoneNumber: phoneNumber.trim(),
           email: email.trim(),
           products: payloadProducts,
+          includePrice,
         }),
       });
 
@@ -241,7 +249,7 @@ export default function ProductSheetApp() {
         )}
 
         <div className="card">
-          <h2 className="card-title">📄 Document Details</h2>
+          <h2 className="card-title">Document Details</h2>
           <div className="grid">
             <div className="field">
               <label>Address *</label>
@@ -259,6 +267,20 @@ export default function ProductSheetApp() {
                 onChange={(e) => setDate(e.target.value)}
               />
             </div>
+          </div>
+          <div className="mt-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includePrice}
+                onChange={(e) => setIncludePrice(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Include price in document</span>
+            </label>
+            <p className="text-xs text-gray-500 mt-1 ml-6">
+              Uncheck to use template without price column
+            </p>
           </div>
         </div>
 

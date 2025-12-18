@@ -67,6 +67,7 @@ export async function POST(req: Request) {
     phoneNumber,
     email,
     products,
+    includePrice = true,
   } = payload ?? {};
 
   if (!address || typeof address !== "string" || !address.trim()) {
@@ -80,7 +81,9 @@ export async function POST(req: Request) {
     );
   }
 
-  const templatePath = path.join(process.cwd(), "public", "product-selection.docx");
+  // Use different template based on includePrice flag
+  const templateName = includePrice ? "product-selection.docx" : "product-selection-2.docx";
+  const templatePath = path.join(process.cwd(), "public", templateName);
   if (!fs.existsSync(templatePath)) {
     return NextResponse.json(
       { error: "Template file not found" },
