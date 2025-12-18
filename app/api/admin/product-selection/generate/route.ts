@@ -164,8 +164,7 @@ export async function POST(req: Request) {
 
     // Check if there's a valid link
     const linkTrimmed = raw?.link?.trim() || "";
-    const hasLink = linkTrimmed && linkTrimmed !== "#";
-    const linkValue = hasLink ? linkTrimmed : "#";
+    const hasLink = linkTrimmed && linkTrimmed !== "#" && linkTrimmed.length > 0;
 
     productsByCategory[category].push({
       code: raw?.code || "",
@@ -174,8 +173,9 @@ export async function POST(req: Request) {
       quantity: raw?.quantity || "",
       notes: raw?.notes || "",
       image: images[index] || "",
-      link: linkValue,
-      linkText: hasLink ? "Product Sheet" : "", // Only show if link exists (no dash, user added it in template)
+      link: hasLink ? linkTrimmed : "",
+      // Use markers so we can find and convert to hyperlinks after rendering
+      linkText: hasLink ? `HYPERLINKSTART${linkTrimmed}HYPERLINKMIDProduct SheetHYPERLINKEND` : "",
     });
   });
 
@@ -210,43 +210,60 @@ export async function POST(req: Request) {
     );
   }
 
-  // Replace #link# placeholders with actual links in the rendered document
-  // Collect all links in order (matching the order products were added)
-  const allLinks: string[] = [];
-  for (const cat of CATEGORY_ORDER) {
-    if (productsByCategory[cat]) {
-      for (const prod of productsByCategory[cat]) {
-        allLinks.push(prod.link || "#");
-      }
-    }
-  }
-
-  // Get the zip and replace #link# in the relationships file (where hyperlink URLs are stored)
+  // Get the rendered zip
   const renderedZip = doc.getZip();
   
-  // Hyperlinks are stored in word/_rels/document.xml.rels
-  const relsFile = renderedZip.file("word/_rels/document.xml.rels");
-  if (relsFile) {
-    let relsContent = relsFile.asText();
-    let linkIndex = 0;
-    // Replace each PRODUCTLINK placeholder with the corresponding actual link
-    while (relsContent.includes("PRODUCTLINK") && linkIndex < allLinks.length) {
-      relsContent = relsContent.replace("PRODUCTLINK", allLinks[linkIndex]);
-      linkIndex++;
-    }
-    renderedZip.file("word/_rels/document.xml.rels", relsContent);
-  }
-  
-  // Also check document.xml in case hyperlinks are inline
+  // Convert HYPERLINK markers to actual Word hyperlinks
   const docFile = renderedZip.file("word/document.xml");
-  if (docFile) {
+  const relsFile = renderedZip.file("word/_rels/document.xml.rels");
+  
+  if (docFile && relsFile) {
     let docContent = docFile.asText();
-    let linkIndex = 0;
-    while (docContent.includes("PRODUCTLINK") && linkIndex < allLinks.length) {
-      docContent = docContent.replace("PRODUCTLINK", allLinks[linkIndex]);
-      linkIndex++;
+    let relsContent = relsFile.asText();
+    
+    // Find the highest existing rId
+    const rIdMatches = relsContent.match(/Id="rId(\d+)"/g) || [];
+    let maxRId = 0;
+    for (const match of rIdMatches) {
+      const num = parseInt(match.match(/rId(\d+)/)?.[1] || "0");
+      if (num > maxRId) maxRId = num;
     }
+    
+    // Find all hyperlink markers and replace them
+    const hyperlinkPattern = /HYPERLINKSTART(.+?)HYPERLINKMIDProduct SheetHYPERLINKEND/g;
+    let match;
+    const hyperlinksToAdd: { url: string; rId: string }[] = [];
+    
+    // First pass: collect all hyperlinks and assign rIds
+    const tempContent = docContent;
+    while ((match = hyperlinkPattern.exec(tempContent)) !== null) {
+      maxRId++;
+      hyperlinksToAdd.push({ url: match[1], rId: `rId${maxRId}` });
+    }
+    
+    // Second pass: replace markers with hyperlink XML
+    let linkIndex = 0;
+    docContent = docContent.replace(hyperlinkPattern, () => {
+      if (linkIndex < hyperlinksToAdd.length) {
+        const { rId } = hyperlinksToAdd[linkIndex];
+        linkIndex++;
+        // Return the hyperlink XML - we wrap "Product Sheet" in a hyperlink
+        return `</w:t></w:r><w:hyperlink r:id="${rId}"><w:r><w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr><w:t>Product Sheet</w:t></w:r></w:hyperlink><w:r><w:t>`;
+      }
+      return "Product Sheet";
+    });
+    
+    // Add hyperlink relationships to .rels file
+    if (hyperlinksToAdd.length > 0) {
+      // Insert before </Relationships>
+      const newRels = hyperlinksToAdd
+        .map(h => `<Relationship Id="${h.rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="${h.url}" TargetMode="External"/>`)
+        .join("");
+      relsContent = relsContent.replace("</Relationships>", newRels + "</Relationships>");
+    }
+    
     renderedZip.file("word/document.xml", docContent);
+    renderedZip.file("word/_rels/document.xml.rels", relsContent);
   }
 
   const docxBuffer = renderedZip.generate({

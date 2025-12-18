@@ -14,3 +14,4 @@ ALTER TABLE "Product" ADD COLUMN "nickname" TEXT;
 -- Add keywords column for enhanced search (comma-separated values)
 ALTER TABLE "Product" ADD COLUMN "keywords" TEXT;
 
+
