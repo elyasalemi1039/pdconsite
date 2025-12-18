@@ -51,28 +51,28 @@ export default function ProductSheetApp() {
   // Load all products on mount
   useEffect(() => {
     const loadAllProducts = async () => {
-      setLoadingProducts(true);
-      try {
+    setLoadingProducts(true);
+    try {
         const resp = await fetch("/api/admin/products?all=true");
-        if (!resp.ok) {
-          const errBody = await resp.json().catch(() => ({}));
-          throw new Error(
-            errBody?.error ||
-              errBody?.details ||
-              `Failed to fetch products (${resp.status})`
-          );
-        }
-        const data = await resp.json();
-        setAllProducts(data.products || []);
-      } catch (err) {
-        setMessage({
-          type: "error",
-          text: err instanceof Error ? err.message : "Failed to fetch products",
-        });
-      } finally {
-        setLoadingProducts(false);
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(
+          errBody?.error ||
+            errBody?.details ||
+            `Failed to fetch products (${resp.status})`
+        );
       }
-    };
+      const data = await resp.json();
+        setAllProducts(data.products || []);
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to fetch products",
+      });
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
     loadAllProducts();
   }, []);
 
@@ -145,14 +145,14 @@ export default function ProductSheetApp() {
   const buildPayloadProducts = () =>
     selected.map((p) => {
       return {
-        category: p.areaName,
-        code: p.code,
-        description: p.description,
-        productDetails: p.productDetails,
-        quantity: p.quantity,
-        notes: p.notes,
-        image: null,
-        imageUrl: p.imageUrl,
+      category: p.areaName,
+      code: p.code,
+      description: p.description,
+      productDetails: p.productDetails,
+      quantity: p.quantity,
+      notes: p.notes,
+      image: null,
+      imageUrl: p.imageUrl,
         link: p.link || "",
       };
     });
@@ -335,34 +335,34 @@ export default function ProductSheetApp() {
 
           {!loadingProducts && filteredProducts.length > 0 && (
             <div className="products-scroll-box">
-              {Object.keys(productsByArea).map((area) => (
-                <div key={area} className="product-card">
-                  <div className="product-header">
-                    <span className="product-title">{area}</span>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    {productsByArea[area].map((product) => {
-                      const isSelected = selected.some((s) => s.id === product.id);
-                      return (
-                        <div
-                          key={product.id}
-                          className="flex items-center justify-between border border-slate-200 rounded px-3 py-2 text-sm"
-                        >
-                          <div className="flex-1 min-w-0 font-semibold text-slate-800">
-                            {product.code}
-                          </div>
-                          <button
-                            className="btn-secondary btn-sm"
-                            onClick={() => toggleSelect(product)}
-                          >
-                            {isSelected ? "Remove" : "Add"}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+          {Object.keys(productsByArea).map((area) => (
+            <div key={area} className="product-card">
+              <div className="product-header">
+                <span className="product-title">{area}</span>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {productsByArea[area].map((product) => {
+                  const isSelected = selected.some((s) => s.id === product.id);
+                  return (
+                    <div
+                      key={product.id}
+                      className="flex items-center justify-between border border-slate-200 rounded px-3 py-2 text-sm"
+                    >
+                      <div className="flex-1 min-w-0 font-semibold text-slate-800">
+                        {product.code}
+                      </div>
+                      <button
+                        className="btn-secondary btn-sm"
+                        onClick={() => toggleSelect(product)}
+                      >
+                        {isSelected ? "Remove" : "Add"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
             </div>
           )}
         </div>
@@ -380,7 +380,7 @@ export default function ProductSheetApp() {
                     <div className="selected-product-info">
                       <span className="selected-product-code">{item.code}</span>
                       <span className="selected-product-desc">{item.description}</span>
-                    </div>
+                  </div>
                     <button
                       className="btn-danger btn-sm"
                       onClick={() => toggleSelect(item)}
@@ -391,19 +391,19 @@ export default function ProductSheetApp() {
                   <div className="selected-product-fields-simple">
                     <div className="field-group field-small">
                       <label>Qty</label>
-                      <input
+                  <input
                         type="text"
-                        placeholder="Qty"
-                        value={item.quantity}
-                        onChange={(e) => updateSelected(item.id, "quantity", e.target.value)}
-                      />
+                    placeholder="Qty"
+                    value={item.quantity}
+                    onChange={(e) => updateSelected(item.id, "quantity", e.target.value)}
+                  />
                     </div>
                     <div className="field-group field-notes-tall">
                       <label>Notes</label>
                       <textarea
                         placeholder="Additional notes... (supports line breaks)"
-                        value={item.notes}
-                        onChange={(e) => updateSelected(item.id, "notes", e.target.value)}
+                    value={item.notes}
+                    onChange={(e) => updateSelected(item.id, "notes", e.target.value)}
                         rows={3}
                       />
                     </div>

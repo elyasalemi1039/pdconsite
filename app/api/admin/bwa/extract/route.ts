@@ -138,6 +138,43 @@ async function extractFromDocx(docxBuffer: Buffer): Promise<ExtractedProduct[]> 
     return match ? match[1] : null;
   };
 
+  // Helper to check if text should be skipped (headers, categories, etc.)
+  const shouldSkip = (text: string): boolean => {
+    if (!text || text.length < 2) return true;
+    
+    const upper = text.toUpperCase();
+    
+    // Skip if contains phone number patterns
+    if (text.match(/\d{4}\s?\d{3}\s?\d{3}/) || text.match(/\(\d{2}\)\s?\d{4}/)) {
+      return true;
+    }
+    
+    // Skip if contains email
+    if (text.includes("@") || text.toLowerCase().includes(".com.au")) {
+      return true;
+    }
+    
+    // Skip common business words/headers
+    const businessWords = ["ABN", "PTY", "LIMITED", "WAREHOUSE", "PHONE", "EMAIL", "FAX", "ADDRESS", "WWW."];
+    if (businessWords.some(word => upper.includes(word))) {
+      return true;
+    }
+    
+    // Skip if it's a category title (all caps, short, no numbers)
+    const categories = ["BASINS", "TAPS", "TOILETS", "SHOWERS", "BATHS", "VANITIES", 
+                        "KITCHEN", "BATHROOM", "ACCESSORIES", "MIXERS", "SINKS"];
+    if (categories.includes(upper)) {
+      return true;
+    }
+    
+    // Skip if looks like a header (all caps, no product code pattern, short)
+    if (upper === text && !text.match(/BWA|^[A-Z]{2,}\d+/) && text.length < 20) {
+      return true;
+    }
+    
+    return false;
+  };
+
   // Try to find tables in the document
   const body = docData?.["w:document"]?.["w:body"];
   if (!body) {
@@ -193,10 +230,15 @@ async function extractFromDocx(docxBuffer: Buffer): Promise<ExtractedProduct[]> 
           code = code.replace(/^[-\s]+/, "");
         }
 
-        if (code || name) {
+        // Skip if code or name looks like a header/category
+        if (shouldSkip(code) || shouldSkip(name)) {
+          continue;
+        }
+
+        if (code && name && code.length > 0 && name.length > 2) {
           products.push({
-            code: code || name.substring(0, 10).toUpperCase(),
-            name: name || code,
+            code: code,
+            name: name,
             imageBase64,
           });
         }
@@ -213,6 +255,11 @@ async function extractFromDocx(docxBuffer: Buffer): Promise<ExtractedProduct[]> 
     
     for (const para of paraList) {
       const text = extractText(para).trim();
+      
+      if (shouldSkip(text)) {
+        continue;
+      }
+      
       const imageRId = findImageRId(para);
       
       if (imageRId) {
@@ -226,14 +273,15 @@ async function extractFromDocx(docxBuffer: Buffer): Promise<ExtractedProduct[]> 
         // Check if this looks like a product code
         if (text.match(/^BWA/i) || text.match(/^[A-Z]{2,}\d+/)) {
           // Save previous product if exists
-          if (currentProduct.code || currentProduct.name) {
-            let code = currentProduct.code || "";
+          if (currentProduct.code && currentProduct.name && 
+              !shouldSkip(currentProduct.code) && !shouldSkip(currentProduct.name)) {
+            let code = currentProduct.code;
             if (code.toUpperCase().startsWith("BWA")) {
               code = code.substring(3).replace(/^[-\s]+/, "");
             }
             products.push({
-              code,
-              name: currentProduct.name || code,
+      code,
+              name: currentProduct.name,
               imageBase64: currentProduct.imageBase64 || null,
             });
           }
@@ -251,14 +299,15 @@ async function extractFromDocx(docxBuffer: Buffer): Promise<ExtractedProduct[]> 
     }
     
     // Don't forget the last product
-    if (currentProduct.code || currentProduct.name) {
-      let code = currentProduct.code || "";
+    if (currentProduct.code && currentProduct.name && 
+        !shouldSkip(currentProduct.code) && !shouldSkip(currentProduct.name)) {
+      let code = currentProduct.code;
       if (code.toUpperCase().startsWith("BWA")) {
         code = code.substring(3).replace(/^[-\s]+/, "");
       }
       products.push({
         code,
-        name: currentProduct.name || code,
+        name: currentProduct.name,
         imageBase64: currentProduct.imageBase64 || null,
       });
     }
@@ -316,7 +365,7 @@ export async function POST(req: Request) {
     console.error("BWA extract error:", error);
     return NextResponse.json(
       { error: "Failed to extract file", details: error?.message },
-      { status: 500 }
-    );
+        { status: 500 }
+      );
   }
 }
