@@ -197,7 +197,7 @@ export async function POST(req: Request) {
       notes: raw?.notes || "",
       image: images[index] || "",
       link: linkValue,
-      linkText: hasLink ? " - Product Sheet" : "", // Only show if link exists
+      linkText: hasLink ? "Product Sheet" : "", // Only show if link exists (no dash, user added it in template)
     });
   });
 
@@ -232,7 +232,38 @@ export async function POST(req: Request) {
     );
   }
 
-  const docxBuffer = doc.getZip().generate({
+  // Replace #link# placeholders with actual links in the rendered document
+  // Collect all links in order (matching the order products were added)
+  const allLinks: string[] = [];
+  for (const cat of CATEGORY_ORDER) {
+    if (productsByCategory[cat]) {
+      for (const prod of productsByCategory[cat]) {
+        allLinks.push(prod.link || "#");
+      }
+    }
+  }
+
+  // Get the zip and replace #link# in XML files
+  const renderedZip = doc.getZip();
+  const xmlFiles = Object.keys(renderedZip.files);
+  let linkIndex = 0;
+  
+  for (const fileName of xmlFiles) {
+    if (fileName.endsWith(".xml") || fileName.endsWith(".rels")) {
+      const file = renderedZip.file(fileName);
+      if (file && !file.dir) {
+        let xmlContent = file.asText();
+        // Replace each #link# with the corresponding actual link
+        while (xmlContent.includes("#link#") && linkIndex < allLinks.length) {
+          xmlContent = xmlContent.replace("#link#", allLinks[linkIndex]);
+          linkIndex++;
+        }
+        renderedZip.file(fileName, xmlContent);
+      }
+    }
+  }
+
+  const docxBuffer = renderedZip.generate({
     type: "nodebuffer",
     compression: "DEFLATE",
   });
