@@ -36,7 +36,6 @@ model Product {
   imageUrl       String
   link           String?
   brand          String?
-  nickname       String?
   keywords       String?
 }
 

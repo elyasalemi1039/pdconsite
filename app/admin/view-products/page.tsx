@@ -50,8 +50,7 @@ export default async function ViewProductsPage() {
               {products.map((p: typeof products[number]) => (
                 <tr key={p.id} className="border-t border-slate-100">
                   <td className="p-3 font-semibold">
-                    <div>{p.code}</div>
-                    {p.nickname && <div className="text-xs text-slate-500">{p.nickname}</div>}
+                    {p.code}
                   </td>
                   <td className="p-3">
                     {p.imageUrl ? (

@@ -11,7 +11,6 @@ type ApiProduct = {
   area: { id: string; name: string };
   link: string | null;
   brand: string | null;
-  nickname: string | null;
   keywords: string | null;
 };
 
@@ -84,9 +83,8 @@ export default function ProductSheetApp() {
       const codeMatch = p.code.toLowerCase().includes(q);
       const descMatch = p.description.toLowerCase().includes(q);
       const brandMatch = p.brand?.toLowerCase().includes(q) || false;
-      const nicknameMatch = p.nickname?.toLowerCase().includes(q) || false;
       const keywordsMatch = p.keywords?.toLowerCase().includes(q) || false;
-      return codeMatch || descMatch || brandMatch || nicknameMatch || keywordsMatch;
+      return codeMatch || descMatch || brandMatch || keywordsMatch;
     });
   }, [allProducts, search]);
 

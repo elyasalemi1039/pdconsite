@@ -21,7 +21,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ products });
     }
 
-    // Search by code, brand, nickname, or keywords
+    // Search by code, brand, or keywords
     const where =
       q.trim().length === 0
         ? {}
@@ -29,7 +29,6 @@ export async function GET(request: Request) {
             OR: [
               { code: { contains: q, mode: "insensitive" as const } },
               { brand: { contains: q, mode: "insensitive" as const } },
-              { nickname: { contains: q, mode: "insensitive" as const } },
               { keywords: { contains: q, mode: "insensitive" as const } },
             ],
           };
@@ -64,7 +63,6 @@ export async function POST(request: Request) {
     const productDetails = formData.get("productDetails")?.toString() || "";
     const link = formData.get("link")?.toString() || "";
     const brand = formData.get("brand")?.toString() || "";
-    const nickname = formData.get("nickname")?.toString() || "";
     const keywords = formData.get("keywords")?.toString() || "";
     const image = formData.get("image") as File | null;
 
@@ -115,7 +113,6 @@ export async function POST(request: Request) {
         imageUrl,
         link: link || null,
         brand: brand || null,
-        nickname: nickname || null,
         keywords: keywords || null,
       },
       include: { area: true },

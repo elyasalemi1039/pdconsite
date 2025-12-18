@@ -9,10 +9,10 @@ type Row = {
   name: string;
   imageBase64: string | null;
   brand: string;
-  nickname: string;
   keywords: string;
   link: string;
   productDetails: string;
+  area: string;
 };
 
 export default function BwaPage() {
@@ -41,11 +41,11 @@ export default function BwaPage() {
             code: r.code || "",
             name: r.name || "",
             imageBase64: r.imageBase64 || null,
-            brand: "BWA",
-            nickname: "",
-            keywords: "bwa, builder warehouse",
+            brand: "",
+            keywords: "",
             link: "",
             productDetails: "",
+            area: selectedArea,
           })) || [];
         if (imported.length === 0) {
           toast.error("No products detected in file.");
@@ -91,14 +91,13 @@ export default function BwaPage() {
           try {
             const formData = new FormData();
             formData.append("code", r.code.trim());
-            formData.append("areaId", ""); // Will need to select area
+            formData.append("areaId", ""); // Will be created/found by areaName
             formData.append("description", r.name.trim() || r.code.trim());
             formData.append("productDetails", r.productDetails.trim());
             formData.append("link", r.link.trim());
             formData.append("brand", r.brand.trim());
-            formData.append("nickname", r.nickname.trim());
             formData.append("keywords", r.keywords.trim());
-            formData.append("areaName", selectedArea);
+            formData.append("areaName", r.area);
 
             // If we have base64 image, convert to blob and append
             if (r.imageBase64) {
@@ -226,17 +225,11 @@ export default function BwaPage() {
                     <div className="flex items-center gap-4 p-3">
                       {/* Image Preview */}
                       <div className="w-16 h-16 flex-shrink-0 bg-white border border-slate-200 rounded overflow-hidden">
-                        {r.imageBase64 ? (
-                          <img
-                            src={`data:image/png;base64,${r.imageBase64}`}
-                            alt={r.code}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">
-                            No Image
-                          </div>
-                        )}
+                        <img
+                          src={r.imageBase64 ? `data:image/png;base64,${r.imageBase64}` : "/no-image.png"}
+                          alt={r.code}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
 
                       {/* Basic Info */}
@@ -252,10 +245,9 @@ export default function BwaPage() {
                           className="px-3 py-1 text-xs rounded border border-slate-300 hover:bg-white"
                           onClick={() => {
                             setExpandedRows(prev => {
-                              const newSet = new Set(prev);
-                              if (newSet.has(r.id)) {
-                                newSet.delete(r.id);
-                              } else {
+                              // Close all others and open this one, or close this one if already open
+                              const newSet = new Set<string>();
+                              if (!prev.has(r.id)) {
                                 newSet.add(r.id);
                               }
                               return newSet;
@@ -314,14 +306,21 @@ export default function BwaPage() {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="block text-xs font-medium text-slate-600 mb-1">
-                              Nickname
+                              Area
                             </label>
-                            <input
-                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                              value={r.nickname}
-                              onChange={(e) => update(r.id, "nickname", e.target.value)}
-                              placeholder="e.g. The Black Beast"
-                            />
+                            <select
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white"
+                              value={r.area}
+                              onChange={(e) => update(r.id, "area", e.target.value)}
+                            >
+                              <option value="Kitchen">Kitchen</option>
+                              <option value="Bathroom">Bathroom</option>
+                              <option value="Bedroom">Bedroom</option>
+                              <option value="Living Room">Living Room</option>
+                              <option value="Laundry">Laundry</option>
+                              <option value="Balcony">Balcony</option>
+                              <option value="Other">Other</option>
+                            </select>
                           </div>
                           <div>
                             <label className="block text-xs font-medium text-slate-600 mb-1">

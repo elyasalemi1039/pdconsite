@@ -20,7 +20,6 @@ type ProductForm = {
   productDetails: string;
   link: string;
   brand: string;
-  nickname: string;
   keywords: string;
   imageFile: File | null;
   imagePreview: string | null;
@@ -34,7 +33,6 @@ const createEmptyForm = (): ProductForm => ({
   productDetails: "",
   link: "",
   brand: "",
-  nickname: "",
   keywords: "",
   imageFile: null,
   imagePreview: null,
@@ -128,7 +126,6 @@ export default function CreateProductForm() {
           formData.append("productDetails", form.productDetails.trim());
           formData.append("link", form.link.trim());
           formData.append("brand", form.brand.trim());
-          formData.append("nickname", form.nickname.trim());
           formData.append("keywords", form.keywords.trim());
           
           if (compressedFile) {
@@ -242,44 +239,6 @@ export default function CreateProductForm() {
 
                   <div className="space-y-1">
                     <label className="block text-sm font-medium text-slate-700">
-                      Nickname
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      value={form.nickname}
-                      onChange={(e) =>
-                        updateForm(form.id, { nickname: e.target.value })
-                      }
-                      placeholder="e.g. The Black Beast"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium text-slate-700">
-                      Area<span className="text-red-600">*</span>
-                    </label>
-                    <select
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white"
-                      value={form.areaId}
-                      onChange={(e) =>
-                        updateForm(form.id, { areaId: e.target.value })
-                      }
-                      required
-                    >
-                      <option value="">Select area</option>
-                      {areas.map((opt) => (
-                        <option key={opt.id} value={opt.id}>
-                          {opt.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium text-slate-700">
                       Brand
                     </label>
                     <input
@@ -292,6 +251,27 @@ export default function CreateProductForm() {
                       placeholder="e.g. Samsung, Bosch"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Area<span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white"
+                    value={form.areaId}
+                    onChange={(e) =>
+                      updateForm(form.id, { areaId: e.target.value })
+                    }
+                    required
+                  >
+                    <option value="">Select area</option>
+                    {areas.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="space-y-1">

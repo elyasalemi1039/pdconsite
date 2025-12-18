@@ -12,11 +12,11 @@ ALTER TABLE "Product" ADD COLUMN "link" TEXT;
 -- Add brand column for filtering
 ALTER TABLE "Product" ADD COLUMN "brand" TEXT;
 
--- Add nickname column for filtering
-ALTER TABLE "Product" ADD COLUMN "nickname" TEXT;
-
 -- Add keywords column for enhanced search (comma-separated values)
 ALTER TABLE "Product" ADD COLUMN "keywords" TEXT;
+
+-- DROP nickname column (no longer used)
+ALTER TABLE "Product" DROP COLUMN IF EXISTS "nickname";
 
 -- DROP price column (no longer used)
 ALTER TABLE "Product" DROP COLUMN IF EXISTS "price";

@@ -15,7 +15,6 @@ export async function POST(request: Request) {
     const productDetails = formData.get("productDetails")?.toString() || "";
     const link = formData.get("link")?.toString() || "";
     const brand = formData.get("brand")?.toString() || "";
-    const nickname = formData.get("nickname")?.toString() || "";
     const keywords = formData.get("keywords")?.toString() || "";
     const areaName = formData.get("areaName")?.toString() || "Other";
     const image = formData.get("image") as File | null;
@@ -67,7 +66,6 @@ export async function POST(request: Request) {
         imageUrl,
         link: link || null,
         brand: brand || null,
-        nickname: nickname || null,
         keywords: keywords || null,
       },
       include: { area: true },
