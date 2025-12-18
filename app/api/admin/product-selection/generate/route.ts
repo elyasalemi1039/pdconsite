@@ -107,7 +107,7 @@ export async function POST(req: Request) {
           centered: false,
           getImage: (value: string) =>
             value ? Buffer.from(value, "base64") : Buffer.alloc(0),
-          getSize: () => [132, 132],
+          getSize: () => [132, 113], // Reduced height by ~0.2 inches
         }),
       ]
     : undefined;
