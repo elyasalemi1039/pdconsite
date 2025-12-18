@@ -251,9 +251,9 @@ export async function POST(req: Request) {
   if (relsFile) {
     let relsContent = relsFile.asText();
     let linkIndex = 0;
-    // Replace each #link# with the corresponding actual link
-    while (relsContent.includes("#link#") && linkIndex < allLinks.length) {
-      relsContent = relsContent.replace("#link#", allLinks[linkIndex]);
+    // Replace each PRODUCTLINK placeholder with the corresponding actual link
+    while (relsContent.includes("PRODUCTLINK") && linkIndex < allLinks.length) {
+      relsContent = relsContent.replace("PRODUCTLINK", allLinks[linkIndex]);
       linkIndex++;
     }
     renderedZip.file("word/_rels/document.xml.rels", relsContent);
@@ -264,8 +264,8 @@ export async function POST(req: Request) {
   if (docFile) {
     let docContent = docFile.asText();
     let linkIndex = 0;
-    while (docContent.includes("#link#") && linkIndex < allLinks.length) {
-      docContent = docContent.replace("#link#", allLinks[linkIndex]);
+    while (docContent.includes("PRODUCTLINK") && linkIndex < allLinks.length) {
+      docContent = docContent.replace("PRODUCTLINK", allLinks[linkIndex]);
       linkIndex++;
     }
     renderedZip.file("word/document.xml", docContent);
