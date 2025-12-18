@@ -155,6 +155,9 @@ export async function POST(req: Request) {
     const priceValue = raw?.price || "";
     const formattedPrice = priceValue ? `$${priceValue}` : "";
 
+    // Use # as fallback link if not provided (prevents broken hyperlinks in template)
+    const linkValue = raw?.link?.trim() || "#";
+
     productsByCategory[category].push({
       code: raw?.code || "",
       description: raw?.description || "",
@@ -164,7 +167,7 @@ export async function POST(req: Request) {
       price: formattedPrice,
       notes: raw?.notes || "",
       image: base64 || "",
-      link: raw?.link || "",
+      link: linkValue,
     });
   }
 
