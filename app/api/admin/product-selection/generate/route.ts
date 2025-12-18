@@ -94,16 +94,24 @@ export async function POST(req: Request) {
     zip = new PizZip(content);
     
     // Fix URL-encoded placeholders in hyperlinks (Word encodes {{ }} in URLs)
-    // This decodes %7B%7B and %7D%7D back to {{ and }}
-    const files = ["word/document.xml", "word/document2.xml", "word/_rels/document.xml.rels"];
-    for (const fileName of files) {
-      const file = zip.file(fileName);
-      if (file) {
-        let xmlContent = file.asText();
-        // Decode URL-encoded curly braces
-        xmlContent = xmlContent.replace(/%7B%7B/gi, "{{").replace(/%7D%7D/gi, "}}");
-        xmlContent = xmlContent.replace(/%7b%7b/gi, "{{").replace(/%7d%7d/gi, "}}");
-        zip.file(fileName, xmlContent);
+    // Decode %7b%7b and %7d%7d back to {{ and }}
+    // Check ALL xml files in the document
+    const allFiles = Object.keys(zip.files);
+    for (const fileName of allFiles) {
+      if (fileName.endsWith(".xml") || fileName.endsWith(".rels")) {
+        const file = zip.file(fileName);
+        if (file && !file.dir) {
+          let xmlContent = file.asText();
+          // Decode all URL-encoded curly braces (case insensitive)
+          if (xmlContent.includes("%7b") || xmlContent.includes("%7B")) {
+            xmlContent = xmlContent
+              .replace(/%7b%7b/g, "{{")
+              .replace(/%7d%7d/g, "}}")
+              .replace(/%7B%7B/g, "{{")
+              .replace(/%7D%7D/g, "}}");
+            zip.file(fileName, xmlContent);
+          }
+        }
       }
     }
   } catch (err: any) {
