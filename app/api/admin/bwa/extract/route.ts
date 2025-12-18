@@ -154,21 +154,16 @@ async function extractFromDocx(docxBuffer: Buffer): Promise<ExtractedProduct[]> 
       return true;
     }
     
-    // Skip common business words/headers
-    const businessWords = ["ABN", "PTY", "LIMITED", "WAREHOUSE", "PHONE", "EMAIL", "FAX", "ADDRESS", "WWW."];
-    if (businessWords.some(word => upper.includes(word))) {
+    // Skip common business words/headers (only if they're the entire string)
+    const businessWords = ["ABN", "PTY LTD", "LIMITED", "WAREHOUSE", "PHONE", "EMAIL", "FAX", "ADDRESS", "WWW."];
+    if (businessWords.some(word => upper === word || upper === word.replace(/\s/g, ""))) {
       return true;
     }
     
-    // Skip if it's a category title (all caps, short, no numbers)
+    // Skip if it's a category title (exact match only)
     const categories = ["BASINS", "TAPS", "TOILETS", "SHOWERS", "BATHS", "VANITIES", 
-                        "KITCHEN", "BATHROOM", "ACCESSORIES", "MIXERS", "SINKS"];
+                        "KITCHEN", "BATHROOM", "ACCESSORIES", "MIXERS", "SINKS", "MIXER"];
     if (categories.includes(upper)) {
-      return true;
-    }
-    
-    // Skip if looks like a header (all caps, no product code pattern, short)
-    if (upper === text && !text.match(/BWA|^[A-Z]{2,}\d+/) && text.length < 20) {
       return true;
     }
     

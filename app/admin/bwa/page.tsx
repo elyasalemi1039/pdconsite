@@ -8,7 +8,11 @@ type Row = {
   code: string;
   name: string;
   imageBase64: string | null;
-  imageUrl: string;
+  brand: string;
+  nickname: string;
+  keywords: string;
+  link: string;
+  productDetails: string;
 };
 
 export default function BwaPage() {
@@ -16,6 +20,7 @@ export default function BwaPage() {
   const [saving, setSaving] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [selectedArea, setSelectedArea] = useState("Kitchen");
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const handleFile = async (file: File) => {
     setExtracting(true);
@@ -36,7 +41,11 @@ export default function BwaPage() {
             code: r.code || "",
             name: r.name || "",
             imageBase64: r.imageBase64 || null,
-            imageUrl: "",
+            brand: "BWA",
+            nickname: "",
+            keywords: "bwa, builder warehouse",
+            link: "",
+            productDetails: "",
           })) || [];
         if (imported.length === 0) {
           toast.error("No products detected in file.");
@@ -84,11 +93,11 @@ export default function BwaPage() {
             formData.append("code", r.code.trim());
             formData.append("areaId", ""); // Will need to select area
             formData.append("description", r.name.trim() || r.code.trim());
-            formData.append("productDetails", "");
-            formData.append("link", "");
-            formData.append("brand", "BWA");
-            formData.append("nickname", "");
-            formData.append("keywords", "bwa, builder warehouse");
+            formData.append("productDetails", r.productDetails.trim());
+            formData.append("link", r.link.trim());
+            formData.append("brand", r.brand.trim());
+            formData.append("nickname", r.nickname.trim());
+            formData.append("keywords", r.keywords.trim());
             formData.append("areaName", selectedArea);
 
             // If we have base64 image, convert to blob and append
@@ -206,60 +215,157 @@ export default function BwaPage() {
             </div>
 
             <div className="space-y-3 max-h-[600px] overflow-y-auto">
-              {rows.map((r) => (
-                <div
-                  key={r.id}
-                  className="flex items-start gap-4 p-3 border border-slate-200 rounded-lg bg-slate-50"
-                >
-                  {/* Image Preview */}
-                  <div className="w-20 h-20 flex-shrink-0 bg-white border border-slate-200 rounded overflow-hidden">
-                    {r.imageBase64 ? (
-                      <img
-                        src={`data:image/png;base64,${r.imageBase64}`}
-                        alt={r.code}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">
-                        No Image
+              {rows.map((r) => {
+                const isExpanded = expandedRows.has(r.id);
+                return (
+                  <div
+                    key={r.id}
+                    className="border border-slate-200 rounded-lg bg-slate-50 overflow-hidden"
+                  >
+                    {/* Collapsed View */}
+                    <div className="flex items-center gap-4 p-3">
+                      {/* Image Preview */}
+                      <div className="w-16 h-16 flex-shrink-0 bg-white border border-slate-200 rounded overflow-hidden">
+                        {r.imageBase64 ? (
+                          <img
+                            src={`data:image/png;base64,${r.imageBase64}`}
+                            alt={r.code}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">
+                            No Image
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Basic Info */}
+                      <div className="flex-1">
+                        <div className="font-semibold text-slate-800">{r.code}</div>
+                        <div className="text-sm text-slate-600 line-clamp-1">{r.name}</div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="px-3 py-1 text-xs rounded border border-slate-300 hover:bg-white"
+                          onClick={() => {
+                            setExpandedRows(prev => {
+                              const newSet = new Set(prev);
+                              if (newSet.has(r.id)) {
+                                newSet.delete(r.id);
+                              } else {
+                                newSet.add(r.id);
+                              }
+                              return newSet;
+                            });
+                          }}
+                        >
+                          {isExpanded ? "Collapse" : "Edit Details"}
+                        </button>
+                        <button
+                          type="button"
+                          className="text-red-500 text-sm hover:underline"
+                          onClick={() => removeRow(r.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Expanded View */}
+                    {isExpanded && (
+                      <div className="border-t border-slate-200 p-4 bg-white space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                              Code *
+                            </label>
+                            <input
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                              value={r.code}
+                              onChange={(e) => update(r.id, "code", e.target.value.toUpperCase())}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                              Brand
+                            </label>
+                            <input
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                              value={r.brand}
+                              onChange={(e) => update(r.id, "brand", e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">
+                            Name / Description *
+                          </label>
+                          <input
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                            value={r.name}
+                            onChange={(e) => update(r.id, "name", e.target.value)}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                              Nickname
+                            </label>
+                            <input
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                              value={r.nickname}
+                              onChange={(e) => update(r.id, "nickname", e.target.value)}
+                              placeholder="e.g. The Black Beast"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                              Product Link
+                            </label>
+                            <input
+                              type="url"
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                              value={r.link}
+                              onChange={(e) => update(r.id, "link", e.target.value)}
+                              placeholder="https://..."
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">
+                            Keywords (comma-separated)
+                          </label>
+                          <input
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                            value={r.keywords}
+                            onChange={(e) => update(r.id, "keywords", e.target.value)}
+                            placeholder="e.g. basin, sink, white, modern"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">
+                            Product Details
+                          </label>
+                          <textarea
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                            rows={2}
+                            value={r.productDetails}
+                            onChange={(e) => update(r.id, "productDetails", e.target.value)}
+                            placeholder="Additional product details..."
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
-
-                  {/* Fields */}
-                  <div className="flex-1 grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">
-                        Code
-                      </label>
-                      <input
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
-                        value={r.code}
-                        onChange={(e) => update(r.id, "code", e.target.value.toUpperCase())}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">
-                        Name / Description
-                      </label>
-                      <input
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
-                        value={r.name}
-                        onChange={(e) => update(r.id, "name", e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Remove Button */}
-                  <button
-                    type="button"
-                    className="text-red-500 text-sm hover:underline"
-                    onClick={() => removeRow(r.id)}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
