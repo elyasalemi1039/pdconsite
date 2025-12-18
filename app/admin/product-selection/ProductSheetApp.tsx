@@ -46,6 +46,7 @@ export default function ProductSheetApp() {
   const [search, setSearch] = useState("");
   const [allProducts, setAllProducts] = useState<ApiProduct[]>([]);
   const [selected, setSelected] = useState<SelectedProduct[]>([]);
+  const [downloadAsWord, setDownloadAsWord] = useState(false);
 
   // Load all products on mount
   useEffect(() => {
@@ -75,10 +76,10 @@ export default function ProductSheetApp() {
     loadAllProducts();
   }, []);
 
-  // Instant client-side filtering
+  // Instant client-side filtering - show all if no search
   const filteredProducts = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return [];
+    if (!q) return allProducts; // Show all products when no search
     return allProducts.filter((p) => {
       const codeMatch = p.code.toLowerCase().includes(q);
       const descMatch = p.description.toLowerCase().includes(q);
@@ -168,6 +169,7 @@ export default function ProductSheetApp() {
 
     try {
       const payloadProducts = buildPayloadProducts();
+      const format = downloadAsWord ? "docx" : "pdf";
       const resp = await fetch(`${API_BASE}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -180,6 +182,7 @@ export default function ProductSheetApp() {
           phoneNumber: phoneNumber.trim(),
           email: email.trim(),
           products: payloadProducts,
+          format,
         }),
       });
 
@@ -192,7 +195,7 @@ export default function ProductSheetApp() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Product_Selection_${address.replace(/\s+/g, "_")}_${date}.docx`;
+      a.download = `Product_Selection_${address.replace(/\s+/g, "_")}_${date}.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -297,14 +300,14 @@ export default function ProductSheetApp() {
         <div className="card">
           <div className="flex justify-between items-center mb-4">
             <h2 className="card-title" style={{ margin: 0 }}>
-              Products from database ({allProducts.length} loaded)
+              Products ({filteredProducts.length} of {allProducts.length})
             </h2>
             <div className="flex gap-2 items-center">
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by code or keywords..."
+                placeholder="Filter products..."
                 style={{ minWidth: "280px" }}
               />
             </div>
@@ -312,42 +315,42 @@ export default function ProductSheetApp() {
 
           {loadingProducts && <p className="text-sm text-gray-500">Loading products...</p>}
 
-          {!loadingProducts && !search.trim() && (
-            <p className="text-sm text-gray-500">Start typing to search products...</p>
+          {!loadingProducts && filteredProducts.length === 0 && (
+            <p className="text-sm text-gray-500">No products found{search.trim() ? ` for "${search}"` : ""}.</p>
           )}
 
-          {!loadingProducts && filteredProducts.length === 0 && search.trim() && (
-            <p className="text-sm text-gray-500">No products found for "{search}".</p>
-          )}
-
-          {Object.keys(productsByArea).map((area) => (
-            <div key={area} className="product-card">
-              <div className="product-header">
-                <span className="product-title">{area}</span>
-              </div>
-              <div className="grid grid-cols-1 gap-2">
-                {productsByArea[area].map((product) => {
-                  const isSelected = selected.some((s) => s.id === product.id);
-                  return (
-                    <div
-                      key={product.id}
-                      className="flex items-center justify-between border border-slate-200 rounded px-3 py-2 text-sm"
-                    >
-                      <div className="flex-1 min-w-0 font-semibold text-slate-800">
-                        {product.code}
-                      </div>
-                      <button
-                        className="btn-secondary btn-sm"
-                        onClick={() => toggleSelect(product)}
-                      >
-                        {isSelected ? "Remove" : "Add"}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+          {!loadingProducts && filteredProducts.length > 0 && (
+            <div className="products-scroll-box">
+              {Object.keys(productsByArea).map((area) => (
+                <div key={area} className="product-card">
+                  <div className="product-header">
+                    <span className="product-title">{area}</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2">
+                    {productsByArea[area].map((product) => {
+                      const isSelected = selected.some((s) => s.id === product.id);
+                      return (
+                        <div
+                          key={product.id}
+                          className="flex items-center justify-between border border-slate-200 rounded px-3 py-2 text-sm"
+                        >
+                          <div className="flex-1 min-w-0 font-semibold text-slate-800">
+                            {product.code}
+                          </div>
+                          <button
+                            className="btn-secondary btn-sm"
+                            onClick={() => toggleSelect(product)}
+                          >
+                            {isSelected ? "Remove" : "Add"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
 
         {selected.length > 0 && (
@@ -397,14 +400,23 @@ export default function ProductSheetApp() {
           </div>
         )}
 
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end items-center gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={downloadAsWord}
+              onChange={(e) => setDownloadAsWord(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300"
+            />
+            <span className="text-sm text-gray-600">Download as Word (.docx)</span>
+          </label>
           <button
             className="btn-primary"
             onClick={generateDocument}
             disabled={generating}
             style={{ padding: "0.75rem 2rem", fontSize: "1rem" }}
           >
-            {generating ? "⏳ Generating..." : "📥 Generate Document"}
+            {generating ? "⏳ Generating..." : `📥 Generate ${downloadAsWord ? "Word" : "PDF"}`}
           </button>
         </div>
       </div>
@@ -558,12 +570,25 @@ export default function ProductSheetApp() {
           font-size: 0.75rem;
         }
 
+        .products-scroll-box {
+          max-height: 400px;
+          overflow-y: auto;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          padding: 0.5rem;
+          background: #f8fafc;
+        }
+
         .product-card {
-          background: #fafafa;
+          background: #fff;
           border: 1px solid #eee;
           border-radius: 6px;
           padding: 1rem;
-          margin-bottom: 1rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .product-card:last-child {
+          margin-bottom: 0;
         }
 
         .product-header {

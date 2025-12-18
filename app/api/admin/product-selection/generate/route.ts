@@ -65,6 +65,7 @@ export async function POST(req: Request) {
     phoneNumber,
     email,
     products,
+    format = "pdf", // Default to PDF
   } = payload ?? {};
 
   if (!address || typeof address !== "string" || !address.trim()) {
@@ -128,7 +129,7 @@ export async function POST(req: Request) {
 
   const productsByCategory: Record<string, any[]> = {};
 
-  const fetchImageAsBase64 = async (url?: string | null) => {
+  const fetchImageAsBase64 = async (url?: string | null): Promise<string> => {
     if (!url) return "";
     try {
       const resp = await fetch(url);
@@ -140,14 +141,20 @@ export async function POST(req: Request) {
     }
   };
 
-  for (const raw of products as IncomingProduct[]) {
+  // Fetch all images in PARALLEL for speed
+  const productList = products as IncomingProduct[];
+  const imagePromises = productList.map(async (raw) => {
+    if (raw?.image && raw.image.length > 10) {
+      return raw.image;
+    }
+    return await fetchImageAsBase64(raw?.imageUrl) || PLACEHOLDER_BASE64;
+  });
+  const images = await Promise.all(imagePromises);
+
+  // Build products with pre-fetched images
+  productList.forEach((raw, index) => {
     const category = raw?.category || "Other";
     if (!productsByCategory[category]) productsByCategory[category] = [];
-
-    const base64 =
-      raw?.image && raw.image.length > 10
-        ? raw.image
-        : await fetchImageAsBase64(raw?.imageUrl) || PLACEHOLDER_BASE64;
 
     // Check if there's a valid link
     const linkTrimmed = raw?.link?.trim() || "";
@@ -160,11 +167,11 @@ export async function POST(req: Request) {
       "product-details": raw?.productDetails || "",
       quantity: raw?.quantity || "",
       notes: raw?.notes || "",
-      image: base64 || "",
+      image: images[index] || "",
       link: linkValue,
       linkText: hasLink ? " - Product Sheet" : "", // Only show if link exists
     });
-  }
+  });
 
   const categories = CATEGORY_ORDER.filter(
     (cat) => productsByCategory[cat]?.length > 0
@@ -197,20 +204,52 @@ export async function POST(req: Request) {
     );
   }
 
-  const buffer = doc.getZip().generate({
+  const docxBuffer = doc.getZip().generate({
     type: "nodebuffer",
     compression: "DEFLATE",
   });
 
   const safeAddress = address.replace(/[^a-z0-9_-]+/gi, "_");
 
-  return new NextResponse(buffer, {
-    status: 200,
-    headers: {
-      "Content-Type":
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "Content-Disposition": `attachment; filename="Product_Selection_${safeAddress}.docx"`,
-    },
-  });
+  // If Word format requested, return docx directly
+  if (format === "docx") {
+    return new NextResponse(docxBuffer, {
+      status: 200,
+      headers: {
+        "Content-Type":
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Disposition": `attachment; filename="Product_Selection_${safeAddress}.docx"`,
+      },
+    });
+  }
+
+  // For PDF, try to convert using libreoffice-convert
+  try {
+    const libre = await import("libreoffice-convert");
+    const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
+      libre.convert(docxBuffer, ".pdf", undefined, (err: Error | null, result: Buffer) => {
+        if (err) reject(err);
+        else resolve(result);
+      });
+    });
+
+    return new NextResponse(pdfBuffer, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="Product_Selection_${safeAddress}.pdf"`,
+      },
+    });
+  } catch (err: any) {
+    // If PDF conversion fails (no LibreOffice), return error with suggestion
+    console.error("PDF conversion failed:", err?.message);
+    return NextResponse.json(
+      { 
+        error: "PDF conversion not available", 
+        details: "LibreOffice is not installed on the server. Please download as Word (.docx) instead.",
+      },
+      { status: 500 }
+    );
+  }
 }
 

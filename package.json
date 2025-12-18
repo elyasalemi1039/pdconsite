@@ -21,6 +21,7 @@
     "docxtemplater-image-module-free": "^1.1.1",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.15.0",
+    "libreoffice-convert": "^1.7.0",
     "lucide-react": "^0.511.0",
     "next": "^16.0.8",
     "pdf-parse": "^1.1.1",
