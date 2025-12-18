@@ -11,9 +11,7 @@ type IncomingProduct = {
   code?: string;
   description?: string;
   productDetails?: string;
-  areaDescription?: string;
   quantity?: string;
-  price?: string;
   notes?: string;
   image?: string | null;
   imageUrl?: string | null;
@@ -23,7 +21,6 @@ type IncomingProduct = {
 function buildProductDetails(p: IncomingProduct) {
   const parts: string[] = [];
   if (p.productDetails?.trim()) parts.push(p.productDetails.trim());
-  if (p.areaDescription?.trim()) parts.push(`Area: ${p.areaDescription.trim()}`);
   if (p.quantity?.trim()) parts.push(`Qty: ${p.quantity.trim()}`);
   if (p.notes?.trim()) parts.push(`Notes: ${p.notes.trim()}`);
   return parts.length ? parts.join(" | ") : null;
@@ -55,7 +52,7 @@ export async function POST(req: Request) {
 
   try {
     for (const raw of products as IncomingProduct[]) {
-      const areaName = (raw?.category || raw?.areaDescription || "Other").trim();
+      const areaName = (raw?.category || "Other").trim();
       const code = raw?.code?.trim();
       if (!code) {
         throw new Error("Product code is required for all rows.");
@@ -68,12 +65,6 @@ export async function POST(req: Request) {
       const description = raw?.description?.trim() || code;
       const productDetails = buildProductDetails(raw);
       const link = raw?.link?.trim() || null;
-
-      const priceNumber = raw?.price ? Number.parseFloat(raw.price) : NaN;
-      const price =
-        Number.isFinite(priceNumber) && !Number.isNaN(priceNumber)
-          ? priceNumber
-          : null;
 
       let imageUrl = raw?.imageUrl?.trim() || "";
 
@@ -98,7 +89,6 @@ export async function POST(req: Request) {
           areaId: area.id,
           description,
           productDetails,
-          price,
           imageUrl,
           link,
         },

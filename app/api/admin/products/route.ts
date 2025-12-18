@@ -62,7 +62,6 @@ export async function POST(request: Request) {
     const areaId = formData.get("areaId")?.toString() || "";
     const description = formData.get("description")?.toString() || "";
     const productDetails = formData.get("productDetails")?.toString() || "";
-    const priceRaw = formData.get("price")?.toString() || "";
     const link = formData.get("link")?.toString() || "";
     const brand = formData.get("brand")?.toString() || "";
     const nickname = formData.get("nickname")?.toString() || "";
@@ -107,15 +106,12 @@ export async function POST(request: Request) {
       imageUrl = getPublicUrl(key);
     }
 
-    const price = priceRaw ? Number(priceRaw) : null;
-
     const product = await prisma.product.create({
       data: {
         code,
         areaId: area.id,
         description,
         productDetails: productDetails || null,
-        price: price !== null && !Number.isNaN(price) ? price : null,
         imageUrl,
         link: link || null,
         brand: brand || null,

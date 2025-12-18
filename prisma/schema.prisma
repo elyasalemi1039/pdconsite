@@ -33,7 +33,6 @@ model Product {
   area           Area     @relation(fields: [areaId], references: [id])
   description    String
   productDetails String?
-  price          Decimal? @db.Decimal(10, 2)
   imageUrl       String
   link           String?
   brand          String?

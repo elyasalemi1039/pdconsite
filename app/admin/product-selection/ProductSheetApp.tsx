@@ -7,7 +7,6 @@ type ApiProduct = {
   code: string;
   description: string;
   productDetails: string | null;
-  price: number | null;
   imageUrl: string;
   area: { id: string; name: string };
   link: string | null;
@@ -22,12 +21,9 @@ type SelectedProduct = {
   areaName: string;
   description: string;
   productDetails: string | null;
-  price: number | null;
-  overridePrice: string;
   imageUrl: string;
   quantity: string;
   notes: string;
-  areaDescription: string;
   link: string | null;
 };
 
@@ -46,7 +42,6 @@ export default function ProductSheetApp() {
   const [company, setCompany] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
-  const [includePrice, setIncludePrice] = useState(true);
 
   const [search, setSearch] = useState("");
   const [allProducts, setAllProducts] = useState<ApiProduct[]>([]);
@@ -119,13 +114,10 @@ export default function ProductSheetApp() {
           code: p.code,
           description: p.description,
           productDetails: p.productDetails,
-          price: p.price,
-          overridePrice: "",
           imageUrl: p.imageUrl,
           areaName,
           quantity: "",
           notes: "",
-          areaDescription: "",
           link,
         },
       ];
@@ -135,7 +127,7 @@ export default function ProductSheetApp() {
 
   const updateSelected = (
     id: string,
-    field: keyof Pick<SelectedProduct, "quantity" | "notes" | "overridePrice" | "areaDescription">,
+    field: keyof Pick<SelectedProduct, "quantity" | "notes">,
     value: string
   ) => {
     setSelected((prev) =>
@@ -151,18 +143,12 @@ export default function ProductSheetApp() {
 
   const buildPayloadProducts = () =>
     selected.map((p) => {
-      // Use override price if provided, otherwise use the original price
-      const finalPrice = p.overridePrice.trim() 
-        ? p.overridePrice.trim() 
-        : (p.price?.toString() ?? "");
       return {
         category: p.areaName,
         code: p.code,
         description: p.description,
         productDetails: p.productDetails,
-        areaDescription: p.areaDescription || p.areaName,
         quantity: p.quantity,
-        price: includePrice ? finalPrice : "",
         notes: p.notes,
         image: null,
         imageUrl: p.imageUrl,
@@ -194,7 +180,6 @@ export default function ProductSheetApp() {
           phoneNumber: phoneNumber.trim(),
           email: email.trim(),
           products: payloadProducts,
-          includePrice,
         }),
       });
 
@@ -267,20 +252,6 @@ export default function ProductSheetApp() {
                 onChange={(e) => setDate(e.target.value)}
               />
             </div>
-          </div>
-          <div className="mt-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={includePrice}
-                onChange={(e) => setIncludePrice(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-gray-700">Include price in document</span>
-            </label>
-            <p className="text-xs text-gray-500 mt-1 ml-6">
-              Uncheck to use template without price column
-            </p>
           </div>
         </div>
 
@@ -392,11 +363,6 @@ export default function ProductSheetApp() {
                     <div className="selected-product-info">
                       <span className="selected-product-code">{item.code}</span>
                       <span className="selected-product-desc">{item.description}</span>
-                      {item.price && (
-                        <span className="selected-product-original-price">
-                          DB Price: ${item.price.toFixed(2)}
-                        </span>
-                      )}
                     </div>
                     <button
                       className="btn-danger btn-sm"
@@ -405,16 +371,7 @@ export default function ProductSheetApp() {
                       ✕ Remove
                     </button>
                   </div>
-                  <div className="selected-product-fields">
-                    <div className="field-group">
-                      <label>Area Description *</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Master Bedroom, Kitchen Island"
-                        value={item.areaDescription}
-                        onChange={(e) => updateSelected(item.id, "areaDescription", e.target.value)}
-                      />
-                    </div>
+                  <div className="selected-product-fields-simple">
                     <div className="field-group field-small">
                       <label>Qty</label>
                       <input
@@ -424,37 +381,13 @@ export default function ProductSheetApp() {
                         onChange={(e) => updateSelected(item.id, "quantity", e.target.value)}
                       />
                     </div>
-                    <div className="field-group field-small">
-                      <label>Override Price</label>
-                      <div className="price-input-wrapper">
-                        <span className="price-prefix">$</span>
-                        <input
-                          type="text"
-                          placeholder={item.price ? item.price.toFixed(2) : "0.00"}
-                          value={item.overridePrice}
-                          onChange={(e) => {
-                            const raw = e.target.value;
-                            let cleaned = raw.replace(/[^\d.]/g, "");
-                            const parts = cleaned.split(".");
-                            if (parts.length > 2) {
-                              cleaned = `${parts[0]}.${parts.slice(1).join("")}`;
-                            }
-                            if (cleaned.includes(".")) {
-                              const [int, dec] = cleaned.split(".");
-                              cleaned = `${int}.${(dec || "").slice(0, 2)}`;
-                            }
-                            updateSelected(item.id, "overridePrice", cleaned);
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <div className="field-group field-notes">
+                    <div className="field-group field-notes-tall">
                       <label>Notes</label>
-                      <input
-                        type="text"
-                        placeholder="Additional notes..."
+                      <textarea
+                        placeholder="Additional notes... (supports line breaks)"
                         value={item.notes}
                         onChange={(e) => updateSelected(item.id, "notes", e.target.value)}
+                        rows={3}
                       />
                     </div>
                   </div>
@@ -756,11 +689,11 @@ export default function ProductSheetApp() {
           border-radius: 3px;
         }
 
-        .selected-product-fields {
+        .selected-product-fields-simple {
           display: grid;
-          grid-template-columns: 1fr 80px 120px 1fr;
+          grid-template-columns: 80px 1fr;
           gap: 0.75rem;
-          align-items: end;
+          align-items: start;
         }
 
         .field-group {
@@ -775,7 +708,8 @@ export default function ProductSheetApp() {
           color: #64748b;
         }
 
-        .field-group input {
+        .field-group input,
+        .field-group textarea {
           padding: 0.5rem 0.75rem;
           border: 1px solid #cbd5e1;
           border-radius: 4px;
@@ -783,7 +717,8 @@ export default function ProductSheetApp() {
           width: 100%;
         }
 
-        .field-group input:focus {
+        .field-group input:focus,
+        .field-group textarea:focus {
           outline: none;
           border-color: #0066cc;
           box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
@@ -791,27 +726,18 @@ export default function ProductSheetApp() {
 
         .field-small {
           min-width: 80px;
+          max-width: 80px;
         }
 
-        .field-notes {
-          min-width: 160px;
+        .field-notes-tall {
+          flex: 1;
         }
 
-        .price-input-wrapper {
-          position: relative;
-        }
-
-        .price-input-wrapper .price-prefix {
-          position: absolute;
-          left: 0.5rem;
-          top: 50%;
-          transform: translateY(-50%);
-          color: #64748b;
-          font-size: 0.875rem;
-        }
-
-        .price-input-wrapper input {
-          padding-left: 1.25rem;
+        .field-notes-tall textarea {
+          min-height: 80px;
+          resize: vertical;
+          font-family: inherit;
+          line-height: 1.5;
         }
 
         @media (max-width: 768px) {

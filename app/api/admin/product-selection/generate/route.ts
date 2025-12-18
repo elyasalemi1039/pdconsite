@@ -14,9 +14,7 @@ type IncomingProduct = {
   code?: string;
   description?: string;
   productDetails?: string;
-  areaDescription?: string;
   quantity?: string;
-  price?: string;
   notes?: string;
   image?: string | null; // base64
   imageUrl?: string | null; // public URL to fetch
@@ -67,7 +65,6 @@ export async function POST(req: Request) {
     phoneNumber,
     email,
     products,
-    includePrice = true,
   } = payload ?? {};
 
   if (!address || typeof address !== "string" || !address.trim()) {
@@ -81,9 +78,7 @@ export async function POST(req: Request) {
     );
   }
 
-  // Use different template based on includePrice flag
-  const templateName = includePrice ? "product-selection.docx" : "product-selection-2.docx";
-  const templatePath = path.join(process.cwd(), "public", templateName);
+  const templatePath = path.join(process.cwd(), "public", "product-selection.docx");
   if (!fs.existsSync(templatePath)) {
     return NextResponse.json(
       { error: "Template file not found" },
@@ -154,10 +149,6 @@ export async function POST(req: Request) {
         ? raw.image
         : await fetchImageAsBase64(raw?.imageUrl) || PLACEHOLDER_BASE64;
 
-    // Format price with $ prefix
-    const priceValue = raw?.price || "";
-    const formattedPrice = priceValue ? `$${priceValue}` : "";
-
     // Use # as fallback link if not provided (prevents broken hyperlinks in template)
     const linkValue = raw?.link?.trim() || "#";
 
@@ -165,12 +156,11 @@ export async function POST(req: Request) {
       code: raw?.code || "",
       description: raw?.description || "",
       "product-details": raw?.productDetails || "",
-      "area-description": raw?.areaDescription || "",
       quantity: raw?.quantity || "",
-      price: formattedPrice,
       notes: raw?.notes || "",
       image: base64 || "",
       link: linkValue,
+      linkText: "Product Sheet", // Static text for hyperlink
     });
   }
 

@@ -18,7 +18,6 @@ type ProductForm = {
   areaId: string;
   description: string;
   productDetails: string;
-  price: string;
   link: string;
   brand: string;
   nickname: string;
@@ -33,7 +32,6 @@ const createEmptyForm = (): ProductForm => ({
   areaId: "",
   description: "",
   productDetails: "",
-  price: "",
   link: "",
   brand: "",
   nickname: "",
@@ -128,7 +126,6 @@ export default function CreateProductForm() {
           formData.append("areaId", form.areaId);
           formData.append("description", form.description.trim());
           formData.append("productDetails", form.productDetails.trim());
-          formData.append("price", form.price.trim());
           formData.append("link", form.link.trim());
           formData.append("brand", form.brand.trim());
           formData.append("nickname", form.nickname.trim());
@@ -344,52 +341,19 @@ export default function CreateProductForm() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium text-slate-700">
-                      Price
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
-                        $
-                      </span>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 pl-7 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                        value={form.price}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          let cleaned = raw.replace(/[^\d.]/g, "");
-                          const parts = cleaned.split(".");
-                          if (parts.length > 2) {
-                            cleaned = `${parts[0]}.${parts.slice(1).join("")}`;
-                          }
-                          if (cleaned.includes(".")) {
-                            const [int, dec] = cleaned.split(".");
-                            cleaned = `${int}.${(dec || "").slice(0, 2)}`;
-                          }
-                          updateForm(form.id, { price: cleaned });
-                        }}
-                        placeholder="199.99"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium text-slate-700">
-                      Product Link
-                    </label>
-                    <input
-                      type="url"
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      value={form.link}
-                      onChange={(e) =>
-                        updateForm(form.id, { link: e.target.value })
-                      }
-                      placeholder="https://..."
-                    />
-                  </div>
+                <div className="space-y-1">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Product Link
+                  </label>
+                  <input
+                    type="url"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    value={form.link}
+                    onChange={(e) =>
+                      updateForm(form.id, { link: e.target.value })
+                    }
+                    placeholder="https://..."
+                  />
                 </div>
               </div>
 
