@@ -31,8 +31,8 @@ const CATEGORY_ORDER = [
   "Other",
 ];
 
-const PLACEHOLDER_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="; // 1x1 png
+// Will be loaded from /public/no-image.png
+let PLACEHOLDER_BASE64: string = "";
 
 function formatDate(input?: string) {
   const parsed = input ? new Date(input) : new Date();
@@ -85,6 +85,12 @@ export async function POST(req: Request) {
       { error: "Template file not found" },
       { status: 500 }
     );
+  }
+
+  // Load placeholder image
+  const placeholderPath = path.join(process.cwd(), "public", "no-image.png");
+  if (fs.existsSync(placeholderPath)) {
+    PLACEHOLDER_BASE64 = fs.readFileSync(placeholderPath).toString("base64");
   }
 
   const content = fs.readFileSync(templatePath, "binary");
