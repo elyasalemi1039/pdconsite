@@ -149,8 +149,9 @@ export async function POST(req: Request) {
         ? raw.image
         : await fetchImageAsBase64(raw?.imageUrl) || PLACEHOLDER_BASE64;
 
-    // Use # as fallback link if not provided (prevents broken hyperlinks in template)
-    const linkValue = raw?.link?.trim() || "#";
+    // Check if there's a valid link
+    const hasLink = raw?.link?.trim() && raw.link.trim() !== "#";
+    const linkValue = hasLink ? raw.link.trim() : "#";
 
     productsByCategory[category].push({
       code: raw?.code || "",
@@ -160,7 +161,7 @@ export async function POST(req: Request) {
       notes: raw?.notes || "",
       image: base64 || "",
       link: linkValue,
-      linkText: "Product Sheet", // Static text for hyperlink
+      linkText: hasLink ? " - Product Sheet" : "", // Only show if link exists
     });
   }
 
