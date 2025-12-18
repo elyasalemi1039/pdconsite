@@ -1,11 +1,6 @@
 -- SQL script to add new columns to the Product table
 -- Run this script manually on your database
--- 
--- IMPORTANT: If a column already exists, you'll get an error like:
--- "column 'link' of relation 'Product' already exists"
--- That's okay! Just skip that line and continue with the next one.
---
--- Run each ALTER TABLE statement one at a time if needed.
+-- If a column already exists, you'll get an error - that's okay, just continue
 
 -- Add the link column (nullable)
 ALTER TABLE "Product" ADD COLUMN "link" TEXT;
