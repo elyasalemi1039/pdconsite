@@ -150,8 +150,9 @@ export async function POST(req: Request) {
         : await fetchImageAsBase64(raw?.imageUrl) || PLACEHOLDER_BASE64;
 
     // Check if there's a valid link
-    const hasLink = raw?.link?.trim() && raw.link.trim() !== "#";
-    const linkValue = hasLink ? raw.link.trim() : "#";
+    const linkTrimmed = raw?.link?.trim() || "";
+    const hasLink = linkTrimmed && linkTrimmed !== "#";
+    const linkValue = hasLink ? linkTrimmed : "#";
 
     productsByCategory[category].push({
       code: raw?.code || "",
