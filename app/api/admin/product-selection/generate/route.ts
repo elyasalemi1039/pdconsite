@@ -151,13 +151,17 @@ export async function POST(req: Request) {
         ? raw.image
         : await fetchImageAsBase64(raw?.imageUrl) || PLACEHOLDER_BASE64;
 
+    // Format price with $ prefix
+    const priceValue = raw?.price || "";
+    const formattedPrice = priceValue ? `$${priceValue}` : "";
+
     productsByCategory[category].push({
       code: raw?.code || "",
       description: raw?.description || "",
       "product-details": raw?.productDetails || "",
       "area-description": raw?.areaDescription || "",
       quantity: raw?.quantity || "",
-      price: raw?.price || "",
+      price: formattedPrice,
       notes: raw?.notes || "",
       image: base64 || "",
       link: raw?.link || "",

@@ -10,14 +10,25 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q") ?? "";
+    const all = searchParams.get("all") === "true";
 
-    console.log("Product search query:", q);
+    // If all=true, return all products for client-side filtering
+    if (all) {
+      const products = await prisma.product.findMany({
+        orderBy: { createdAt: "desc" },
+        include: { area: true },
+      });
+      return NextResponse.json({ products });
+    }
 
     const where =
       q.trim().length === 0
         ? {}
         : {
-            code: { contains: q, mode: "insensitive" as const },
+            OR: [
+              { code: { contains: q, mode: "insensitive" as const } },
+              { keywords: { contains: q, mode: "insensitive" as const } },
+            ],
           };
 
     const products = await prisma.product.findMany({
@@ -26,8 +37,6 @@ export async function GET(request: Request) {
       take: 50,
       include: { area: true },
     });
-
-    console.log("Found products:", products.length);
 
     return NextResponse.json({ products });
   } catch (error) {
@@ -51,6 +60,7 @@ export async function POST(request: Request) {
     const productDetails = formData.get("productDetails")?.toString() || "";
     const priceRaw = formData.get("price")?.toString() || "";
     const link = formData.get("link")?.toString() || "";
+    const keywords = formData.get("keywords")?.toString() || "";
     const image = formData.get("image") as File | null;
 
     if (!code.trim()) {
@@ -103,6 +113,7 @@ export async function POST(request: Request) {
         price: price !== null && !Number.isNaN(price) ? price : null,
         imageUrl: getPublicUrl(key),
         link: link || null,
+        keywords: keywords || null,
       },
       include: { area: true },
     });

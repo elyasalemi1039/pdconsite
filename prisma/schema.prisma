@@ -36,6 +36,7 @@ model Product {
   price          Decimal? @db.Decimal(10, 2)
   imageUrl       String
   link           String?
+  keywords       String?
 }
 
 model Area {

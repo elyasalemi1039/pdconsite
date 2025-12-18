@@ -11,6 +11,7 @@ type ApiProduct = {
   imageUrl: string;
   area: { id: string; name: string };
   link: string | null;
+  keywords: string | null;
 };
 
 type SelectedProduct = {
@@ -35,7 +36,7 @@ const API_BASE = "/api/admin/product-selection";
 export default function ProductSheetApp() {
   const [message, setMessage] = useState<Message | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   const [address, setAddress] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
@@ -45,46 +46,56 @@ export default function ProductSheetApp() {
   const [email, setEmail] = useState("");
 
   const [search, setSearch] = useState("");
-  const [products, setProducts] = useState<ApiProduct[]>([]);
+  const [allProducts, setAllProducts] = useState<ApiProduct[]>([]);
   const [selected, setSelected] = useState<SelectedProduct[]>([]);
 
+  // Load all products on mount
+  useEffect(() => {
+    const loadAllProducts = async () => {
+      setLoadingProducts(true);
+      try {
+        const resp = await fetch("/api/admin/products?all=true");
+        if (!resp.ok) {
+          const errBody = await resp.json().catch(() => ({}));
+          throw new Error(
+            errBody?.error ||
+              errBody?.details ||
+              `Failed to fetch products (${resp.status})`
+          );
+        }
+        const data = await resp.json();
+        setAllProducts(data.products || []);
+      } catch (err) {
+        setMessage({
+          type: "error",
+          text: err instanceof Error ? err.message : "Failed to fetch products",
+        });
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+    loadAllProducts();
+  }, []);
+
+  // Instant client-side filtering
+  const filteredProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return allProducts.filter((p) => {
+      const codeMatch = p.code.toLowerCase().includes(q);
+      const keywordsMatch = p.keywords?.toLowerCase().includes(q) || false;
+      const descMatch = p.description.toLowerCase().includes(q);
+      return codeMatch || keywordsMatch || descMatch;
+    });
+  }, [allProducts, search]);
+
   const productsByArea = useMemo(() => {
-    return products.reduce<Record<string, ApiProduct[]>>((acc, p) => {
+    return filteredProducts.reduce<Record<string, ApiProduct[]>>((acc, p) => {
       const key = p.area?.name || "Other";
       acc[key] = acc[key] ? [...acc[key], p] : [p];
       return acc;
     }, {});
-  }, [products]);
-
-  const fetchProducts = async () => {
-    setLoadingProducts(true);
-    try {
-      if (search.trim().length < 2) {
-        setProducts([]);
-        return;
-      }
-      const resp = await fetch(
-        `/api/admin/products${search ? `?q=${encodeURIComponent(search)}` : ""}`
-      );
-      if (!resp.ok) {
-        const errBody = await resp.json().catch(() => ({}));
-        throw new Error(
-          errBody?.error ||
-            errBody?.details ||
-            `Failed to fetch products (${resp.status})`
-        );
-      }
-      const data = await resp.json();
-      setProducts(data.products || []);
-    } catch (err) {
-      setMessage({
-        type: "error",
-        text: err instanceof Error ? err.message : "Failed to fetch products",
-      });
-    } finally {
-      setLoadingProducts(false);
-    }
-  };
+  }, [filteredProducts]);
 
   const toggleSelect = (p: ApiProduct | SelectedProduct) => {
     const areaName =
@@ -116,17 +127,6 @@ export default function ProductSheetApp() {
     });
   };
 
-  // Live search with debounce
-  useEffect(() => {
-    if (search.trim().length < 2) {
-      setProducts([]);
-      return;
-    }
-    const timer = setTimeout(() => {
-      fetchProducts();
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   const updateSelected = (
     id: string,
@@ -306,24 +306,27 @@ export default function ProductSheetApp() {
         <div className="card">
           <div className="flex justify-between items-center mb-4">
             <h2 className="card-title" style={{ margin: 0 }}>
-              📦 Products from database (search by code)
+              Products from database ({allProducts.length} loaded)
             </h2>
             <div className="flex gap-2 items-center">
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Type to search..."
-                style={{ minWidth: "220px" }}
+                placeholder="Search by code or keywords..."
+                style={{ minWidth: "280px" }}
               />
-              {loadingProducts && <span className="text-sm text-gray-500">⏳</span>}
             </div>
           </div>
 
           {loadingProducts && <p className="text-sm text-gray-500">Loading products...</p>}
 
-          {!loadingProducts && products.length === 0 && search.trim().length >= 2 && (
-            <p className="text-sm text-gray-500">No products found.</p>
+          {!loadingProducts && !search.trim() && (
+            <p className="text-sm text-gray-500">Start typing to search products...</p>
+          )}
+
+          {!loadingProducts && filteredProducts.length === 0 && search.trim() && (
+            <p className="text-sm text-gray-500">No products found for "{search}".</p>
           )}
 
           {Object.keys(productsByArea).map((area) => (
