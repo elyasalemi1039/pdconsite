@@ -6,18 +6,16 @@ import toast, { Toaster } from "react-hot-toast";
 type Row = {
   id: string;
   code: string;
-  manufacturerDescription: string;
-  price: string;
+  name: string;
+  imageBase64: string | null;
   imageUrl: string;
-  notes: string;
 };
 
 export default function BwaPage() {
-  const [rows, setRows] = useState<Row[]>([
-    { id: crypto.randomUUID(), code: "", manufacturerDescription: "", price: "", imageUrl: "", notes: "" },
-  ]);
+  const [rows, setRows] = useState<Row[]>([]);
   const [saving, setSaving] = useState(false);
   const [extracting, setExtracting] = useState(false);
+  const [selectedArea, setSelectedArea] = useState("Kitchen");
 
   const handleFile = async (file: File) => {
     setExtracting(true);
@@ -36,16 +34,15 @@ export default function BwaPage() {
           (data.rows || []).map((r: any) => ({
             id: crypto.randomUUID(),
             code: r.code || "",
-            manufacturerDescription: r.manufacturerDescription || "",
-            price: r.price || "",
-            imageUrl: r.imageUrl || "",
-            notes: "",
+            name: r.name || "",
+            imageBase64: r.imageBase64 || null,
+            imageUrl: "",
           })) || [];
         if (imported.length === 0) {
-          toast.error("No rows detected in PDF.");
+          toast.error("No products detected in file.");
         } else {
           setRows(imported);
-          toast.success(`Imported ${imported.length} rows from PDF`);
+          toast.success(`Imported ${imported.length} products from file`);
         }
       }
     } catch {
@@ -55,158 +52,224 @@ export default function BwaPage() {
     }
   };
 
-  const update = (id: string, field: keyof Row, value: string) => {
+  const update = (id: string, field: keyof Row, value: string | null) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
   };
 
-  const addRow = () =>
-    setRows((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), code: "", manufacturerDescription: "", price: "", imageUrl: "", notes: "" },
-    ]);
-
   const removeRow = (id: string) => {
-    if (rows.length === 1) return;
     setRows((prev) => prev.filter((r) => r.id !== id));
   };
 
   const handleImport = async () => {
-    const payload = rows
-      .filter((r) => r.code.trim())
-      .map((r) => ({
-        code: r.code.trim(),
-        description: r.manufacturerDescription.trim() || r.code.trim(),
-        manufacturerDescription: r.manufacturerDescription.trim(),
-        productDetails: r.notes.trim(),
-        price: r.price.trim(),
-        imageUrl: r.imageUrl.trim(),
-        areaName: "Other",
-      }));
+    const validRows = rows.filter((r) => r.code.trim());
 
-    if (payload.length === 0) {
-      toast.error("Add at least one row with Product Code");
+    if (validRows.length === 0) {
+      toast.error("No valid products to import");
       return;
     }
 
     setSaving(true);
-    try {
-      const res = await fetch("/api/admin/product-selection/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ products: payload }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data?.error || "Failed to import");
-      } else {
-        toast.success(`Imported ${data?.products?.length ?? payload.length} products`);
-      }
-    } catch {
-      toast.error("Failed to import");
-    } finally {
-      setSaving(false);
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Process in batches of 3 for speed
+    const batchSize = 3;
+    for (let i = 0; i < validRows.length; i += batchSize) {
+      const batch = validRows.slice(i, i + batchSize);
+      
+      const results = await Promise.all(
+        batch.map(async (r) => {
+          try {
+            const formData = new FormData();
+            formData.append("code", r.code.trim());
+            formData.append("areaId", ""); // Will need to select area
+            formData.append("description", r.name.trim() || r.code.trim());
+            formData.append("productDetails", "");
+            formData.append("link", "");
+            formData.append("brand", "BWA");
+            formData.append("nickname", "");
+            formData.append("keywords", "bwa, builder warehouse");
+            formData.append("areaName", selectedArea);
+
+            // If we have base64 image, convert to blob and append
+            if (r.imageBase64) {
+              const byteString = atob(r.imageBase64);
+              const ab = new ArrayBuffer(byteString.length);
+              const ia = new Uint8Array(ab);
+              for (let j = 0; j < byteString.length; j++) {
+                ia[j] = byteString.charCodeAt(j);
+              }
+              const blob = new Blob([ab], { type: "image/png" });
+              formData.append("image", blob, `${r.code}.png`);
+            }
+
+            const res = await fetch("/api/admin/products/bwa", {
+              method: "POST",
+              body: formData,
+            });
+
+            if (!res.ok) {
+              const data = await res.json();
+              console.error(`Failed to import ${r.code}:`, data?.error);
+              return false;
+            }
+            return true;
+          } catch (err) {
+            console.error(`Error importing ${r.code}:`, err);
+            return false;
+          }
+        })
+      );
+
+      successCount += results.filter(Boolean).length;
+      errorCount += results.filter((r) => !r).length;
+    }
+
+    setSaving(false);
+
+    if (successCount > 0) {
+      toast.success(`Imported ${successCount} products`);
+    }
+    if (errorCount > 0) {
+      toast.error(`Failed to import ${errorCount} products`);
     }
   };
 
   return (
     <main className="min-h-screen bg-slate-50 py-16 px-4">
       <Toaster />
-      <div className="max-w-5xl mx-auto space-y-6">
-        <h1 className="text-2xl font-semibold text-slate-900">BWA Import (Builder Warehouse AU)</h1>
-        <p className="text-sm text-slate-600">
-          Columns: Product Code → code, Product Name → manufacturer description, Unit Price (EX GST) → price. Edit rows then add to system.
-        </p>
-        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4 flex items-center gap-3">
-          <input
-            type="file"
-            accept="application/pdf"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFile(file);
-            }}
-            className="text-sm"
-          />
-          {extracting && <span className="text-sm text-slate-500">Extracting...</span>}
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">BWA Import</h1>
+            <p className="text-sm text-slate-600">
+              Upload a BWA PDF to extract products with images. The "BWA" prefix will be automatically removed from codes.
+            </p>
+          </div>
+          <a href="/admin" className="text-sm text-blue-600 hover:underline">
+            ← Back to Admin
+          </a>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
-          <div className="grid grid-cols-[1.5fr,2fr,1fr,2fr,1fr] gap-3 text-sm font-semibold text-slate-600 mb-2">
-            <span>Product Code</span>
-            <span>Product Name (Manufacturer Description)</span>
-            <span>Price (ex GST)</span>
-            <span>Image URL (optional)</span>
-            <span>Notes</span>
-          </div>
-          <div className="space-y-3">
-            {rows.map((r, idx) => (
-              <div
-                key={r.id}
-                className="grid grid-cols-[1.5fr,2fr,1fr,2fr,1fr] gap-3 items-center text-sm"
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4 space-y-4">
+          <div className="flex items-center gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Upload BWA PDF or DOCX
+              </label>
+              <input
+                type="file"
+                accept="application/pdf,.docx"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFile(file);
+                }}
+                className="text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Target Area
+              </label>
+              <select
+                value={selectedArea}
+                onChange={(e) => setSelectedArea(e.target.value)}
+                className="rounded border border-slate-300 px-3 py-1.5 text-sm"
               >
-                <input
-                  className="rounded border border-slate-300 px-2 py-1"
-                  value={r.code}
-                  onChange={(e) => update(r.id, "code", e.target.value.toUpperCase())}
-                  placeholder="e.g. BW-001"
-                />
-                <input
-                  className="rounded border border-slate-300 px-2 py-1"
-                  value={r.manufacturerDescription}
-                  onChange={(e) => update(r.id, "manufacturerDescription", e.target.value)}
-                  placeholder="Product Name"
-                />
-                <input
-                  className="rounded border border-slate-300 px-2 py-1"
-                  value={r.price}
-                  onChange={(e) => update(r.id, "price", e.target.value.replace(/[^\d.]/g, ""))}
-                  placeholder="99.99"
-                />
-                <input
-                  className="rounded border border-slate-300 px-2 py-1"
-                  value={r.imageUrl}
-                  onChange={(e) => update(r.id, "imageUrl", e.target.value)}
-                  placeholder="https://..."
-                />
-                <div className="flex gap-2 items-center">
-                  <input
-                    className="rounded border border-slate-300 px-2 py-1 w-full"
-                    value={r.notes}
-                    onChange={(e) => update(r.id, "notes", e.target.value)}
-                    placeholder="Notes"
-                  />
-                  {rows.length > 1 && (
-                    <button
-                      className="text-red-500 text-xs"
-                      type="button"
-                      onClick={() => removeRow(r.id)}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 flex gap-3">
-            <button
-              type="button"
-              className="px-3 py-2 rounded-md border border-slate-300 text-sm"
-              onClick={addRow}
-            >
-              + Add Row
-            </button>
-            <button
-              type="button"
-              className="px-4 py-2 rounded-md bg-amber-500 text-white text-sm font-semibold disabled:opacity-60"
-              onClick={handleImport}
-              disabled={saving}
-            >
-              {saving ? "Importing..." : "Add to system"}
-            </button>
+                <option value="Kitchen">Kitchen</option>
+                <option value="Bathroom">Bathroom</option>
+                <option value="Bedroom">Bedroom</option>
+                <option value="Living Room">Living Room</option>
+                <option value="Laundry">Laundry</option>
+                <option value="Balcony">Balcony</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            {extracting && <span className="text-sm text-slate-500">Extracting...</span>}
           </div>
         </div>
+
+        {rows.length > 0 && (
+          <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-800">
+                Extracted Products ({rows.length})
+              </h2>
+              <button
+                type="button"
+                className="px-4 py-2 rounded-md bg-amber-500 text-white text-sm font-semibold disabled:opacity-60"
+                onClick={handleImport}
+                disabled={saving}
+              >
+                {saving ? "Importing..." : `Import ${rows.length} Products`}
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-[600px] overflow-y-auto">
+              {rows.map((r) => (
+                <div
+                  key={r.id}
+                  className="flex items-start gap-4 p-3 border border-slate-200 rounded-lg bg-slate-50"
+                >
+                  {/* Image Preview */}
+                  <div className="w-20 h-20 flex-shrink-0 bg-white border border-slate-200 rounded overflow-hidden">
+                    {r.imageBase64 ? (
+                      <img
+                        src={`data:image/png;base64,${r.imageBase64}`}
+                        alt={r.code}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">
+                        No Image
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Fields */}
+                  <div className="flex-1 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        Code
+                      </label>
+                      <input
+                        className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                        value={r.code}
+                        onChange={(e) => update(r.id, "code", e.target.value.toUpperCase())}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                        Name / Description
+                      </label>
+                      <input
+                        className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                        value={r.name}
+                        onChange={(e) => update(r.id, "name", e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Remove Button */}
+                  <button
+                    type="button"
+                    className="text-red-500 text-sm hover:underline"
+                    onClick={() => removeRow(r.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {rows.length === 0 && !extracting && (
+          <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-8 text-center text-slate-500">
+            Upload a BWA PDF or DOCX file to get started
+          </div>
+        )}
       </div>
     </main>
   );
 }
-
