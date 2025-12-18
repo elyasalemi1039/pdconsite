@@ -223,15 +223,54 @@ export async function POST(req: Request) {
     });
   }
 
-  // For PDF, try to convert using libreoffice-convert
+  // For PDF, use CloudConvert API
   try {
-    const libre = await import("libreoffice-convert");
-    const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
-      libre.convert(docxBuffer, ".pdf", undefined, (err: Error | null, result: Buffer) => {
-        if (err) reject(err);
-        else resolve(result);
-      });
+    const CloudConvert = (await import("cloudconvert")).default;
+    const cloudConvert = new CloudConvert(process.env.CLOUDCONVERT_API_KEY!);
+
+    // Create a job that uploads, converts, and exports
+    const job = await cloudConvert.jobs.create({
+      tasks: {
+        "upload-docx": {
+          operation: "import/upload",
+        },
+        "convert-to-pdf": {
+          operation: "convert",
+          input: "upload-docx",
+          output_format: "pdf",
+        },
+        "export-pdf": {
+          operation: "export/url",
+          input: "convert-to-pdf",
+        },
+      },
     });
+
+    // Find the upload task and upload the docx
+    const uploadTask = job.tasks.find((t: any) => t.name === "upload-docx");
+    if (!uploadTask) {
+      throw new Error("Upload task not found");
+    }
+
+    await cloudConvert.tasks.upload(uploadTask, docxBuffer, "document.docx");
+
+    // Wait for the job to complete
+    const completedJob = await cloudConvert.jobs.wait(job.id);
+
+    // Find the export task and get the file URL
+    const exportTask = completedJob.tasks.find((t: any) => t.name === "export-pdf");
+    if (!exportTask?.result?.files?.[0]?.url) {
+      throw new Error("Export task failed or no file URL");
+    }
+
+    // Download the PDF
+    const pdfUrl = exportTask.result.files[0].url;
+    const pdfResponse = await fetch(pdfUrl);
+    if (!pdfResponse.ok) {
+      throw new Error("Failed to download converted PDF");
+    }
+
+    const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
 
     return new NextResponse(pdfBuffer, {
       status: 200,
@@ -241,12 +280,11 @@ export async function POST(req: Request) {
       },
     });
   } catch (err: any) {
-    // If PDF conversion fails (no LibreOffice), return error with suggestion
     console.error("PDF conversion failed:", err?.message);
     return NextResponse.json(
       { 
-        error: "PDF conversion not available", 
-        details: "LibreOffice is not installed on the server. Please download as Word (.docx) instead.",
+        error: "PDF conversion failed", 
+        details: err?.message || "Unknown error during PDF conversion. Try downloading as Word instead.",
       },
       { status: 500 }
     );
