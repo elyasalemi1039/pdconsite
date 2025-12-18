@@ -98,28 +98,6 @@ export async function POST(req: Request) {
   let zip: PizZip;
   try {
     zip = new PizZip(content);
-    
-    // Fix URL-encoded placeholders in hyperlinks (Word encodes {{ }} in URLs)
-    // Decode %7b%7b and %7d%7d back to {{ and }}
-    // Check ALL xml files in the document
-    const allFiles = Object.keys(zip.files);
-    for (const fileName of allFiles) {
-      if (fileName.endsWith(".xml") || fileName.endsWith(".rels")) {
-        const file = zip.file(fileName);
-        if (file && !file.dir) {
-          let xmlContent = file.asText();
-          // Decode all URL-encoded curly braces (case insensitive)
-          if (xmlContent.includes("%7b") || xmlContent.includes("%7B")) {
-            xmlContent = xmlContent
-              .replace(/%7b%7b/g, "{{")
-              .replace(/%7d%7d/g, "}}")
-              .replace(/%7B%7B/g, "{{")
-              .replace(/%7D%7D/g, "}}");
-            zip.file(fileName, xmlContent);
-          }
-        }
-      }
-    }
   } catch (err: any) {
     return NextResponse.json(
       { error: "Template file is corrupted", details: err?.message },
@@ -127,18 +105,18 @@ export async function POST(req: Request) {
     );
   }
 
-  const hasImages = products.some((p: IncomingProduct) => p?.image || p?.imageUrl);
-
-  const modules = hasImages
-    ? [
-        new ImageModule({
-          centered: false,
-          getImage: (value: string) =>
-            value ? Buffer.from(value, "base64") : Buffer.alloc(0),
-          getSize: () => [132, 113], // Reduced height by ~0.2 inches
-        }),
-      ]
-    : undefined;
+  // Always load ImageModule (needed for placeholder images too)
+  const imageModule = new ImageModule({
+    centered: false,
+    getImage: (value: string) => {
+      if (!value || value.length < 10) {
+        // Return placeholder if no valid image
+        return PLACEHOLDER_BASE64 ? Buffer.from(PLACEHOLDER_BASE64, "base64") : Buffer.alloc(0);
+      }
+      return Buffer.from(value, "base64");
+    },
+    getSize: () => [132, 113],
+  });
 
   let doc: Docxtemplater;
   try {
@@ -146,7 +124,7 @@ export async function POST(req: Request) {
       paragraphLoop: true,
       linebreaks: true,
       delimiters: { start: "{{", end: "}}" },
-      ...(modules ? { modules } : {}),
+      modules: [imageModule],
     });
   } catch (err: any) {
     return NextResponse.json(
