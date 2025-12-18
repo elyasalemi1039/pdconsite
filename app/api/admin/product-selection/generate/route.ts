@@ -243,24 +243,32 @@ export async function POST(req: Request) {
     }
   }
 
-  // Get the zip and replace #link# in XML files
+  // Get the zip and replace #link# in the relationships file (where hyperlink URLs are stored)
   const renderedZip = doc.getZip();
-  const xmlFiles = Object.keys(renderedZip.files);
-  let linkIndex = 0;
   
-  for (const fileName of xmlFiles) {
-    if (fileName.endsWith(".xml") || fileName.endsWith(".rels")) {
-      const file = renderedZip.file(fileName);
-      if (file && !file.dir) {
-        let xmlContent = file.asText();
-        // Replace each #link# with the corresponding actual link
-        while (xmlContent.includes("#link#") && linkIndex < allLinks.length) {
-          xmlContent = xmlContent.replace("#link#", allLinks[linkIndex]);
-          linkIndex++;
-        }
-        renderedZip.file(fileName, xmlContent);
-      }
+  // Hyperlinks are stored in word/_rels/document.xml.rels
+  const relsFile = renderedZip.file("word/_rels/document.xml.rels");
+  if (relsFile) {
+    let relsContent = relsFile.asText();
+    let linkIndex = 0;
+    // Replace each #link# with the corresponding actual link
+    while (relsContent.includes("#link#") && linkIndex < allLinks.length) {
+      relsContent = relsContent.replace("#link#", allLinks[linkIndex]);
+      linkIndex++;
     }
+    renderedZip.file("word/_rels/document.xml.rels", relsContent);
+  }
+  
+  // Also check document.xml in case hyperlinks are inline
+  const docFile = renderedZip.file("word/document.xml");
+  if (docFile) {
+    let docContent = docFile.asText();
+    let linkIndex = 0;
+    while (docContent.includes("#link#") && linkIndex < allLinks.length) {
+      docContent = docContent.replace("#link#", allLinks[linkIndex]);
+      linkIndex++;
+    }
+    renderedZip.file("word/document.xml", docContent);
   }
 
   const docxBuffer = renderedZip.generate({
@@ -268,7 +276,22 @@ export async function POST(req: Request) {
     compression: "DEFLATE",
   });
 
-  const safeAddress = address.replace(/[^a-z0-9_-]+/gi, "_");
+  // Generate filename: ProductSelection + first letter of each word + date (DDMMYYYY)
+  const addressInitials = address
+    .trim()
+    .split(/\s+/)
+    .map((word: string) => word.charAt(0).toUpperCase())
+    .filter((char: string) => /[A-Z]/.test(char)) // Only letters
+    .join("");
+  
+  // Format date as DDMMYYYY
+  const dateObj = date ? new Date(date) : new Date();
+  const dd = String(dateObj.getDate()).padStart(2, "0");
+  const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
+  const yyyy = dateObj.getFullYear();
+  const formattedDate = `${dd}${mm}${yyyy}`;
+  
+  const fileName = `ProductSelection${addressInitials}${formattedDate}`;
 
   // If Word format requested, return docx directly
   if (format === "docx") {
@@ -277,7 +300,7 @@ export async function POST(req: Request) {
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="Product_Selection_${safeAddress}.docx"`,
+        "Content-Disposition": `attachment; filename="${fileName}.docx"`,
       },
     });
   }
@@ -335,7 +358,7 @@ export async function POST(req: Request) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="Product_Selection_${safeAddress}.pdf"`,
+        "Content-Disposition": `attachment; filename="${fileName}.pdf"`,
       },
     });
   } catch (err: any) {

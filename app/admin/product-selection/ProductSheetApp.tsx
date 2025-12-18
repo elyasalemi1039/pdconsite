@@ -193,9 +193,23 @@ export default function ProductSheetApp() {
 
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
+      
+      // Generate filename: ProductSelection + first letter of each word + date (DDMMYYYY)
+      const addressInitials = address
+        .trim()
+        .split(/\s+/)
+        .map((word) => word.charAt(0).toUpperCase())
+        .filter((char) => /[A-Z]/.test(char))
+        .join("");
+      const dateObj = new Date(date);
+      const dd = String(dateObj.getDate()).padStart(2, "0");
+      const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
+      const yyyy = dateObj.getFullYear();
+      const formattedDate = `${dd}${mm}${yyyy}`;
+      
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Product_Selection_${address.replace(/\s+/g, "_")}_${date}.${format}`;
+      a.download = `ProductSelection${addressInitials}${formattedDate}.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
