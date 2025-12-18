@@ -21,14 +21,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ products });
     }
 
+    // Simple search by code only
     const where =
       q.trim().length === 0
         ? {}
         : {
-            OR: [
-              { code: { contains: q, mode: "insensitive" as const } },
-              { keywords: { contains: q, mode: "insensitive" as const } },
-            ],
+            code: { contains: q, mode: "insensitive" as const },
           };
 
     const products = await prisma.product.findMany({
@@ -37,12 +35,13 @@ export async function GET(request: Request) {
       take: 50,
       include: { area: true },
     });
-
+    
     return NextResponse.json({ products });
   } catch (error) {
     console.error("Error fetching products:", error);
     const errorMessage =
       error instanceof Error ? `${error.message}` : "Unknown error";
+    
     return NextResponse.json(
       { error: "Failed to fetch products", details: errorMessage, products: [] },
       { status: 500 }
@@ -60,7 +59,6 @@ export async function POST(request: Request) {
     const productDetails = formData.get("productDetails")?.toString() || "";
     const priceRaw = formData.get("price")?.toString() || "";
     const link = formData.get("link")?.toString() || "";
-    const keywords = formData.get("keywords")?.toString() || "";
     const image = formData.get("image") as File | null;
 
     if (!code.trim()) {
@@ -113,7 +111,6 @@ export async function POST(request: Request) {
         price: price !== null && !Number.isNaN(price) ? price : null,
         imageUrl: getPublicUrl(key),
         link: link || null,
-        keywords: keywords || null,
       },
       include: { area: true },
     });

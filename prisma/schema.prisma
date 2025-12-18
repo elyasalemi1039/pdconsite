@@ -36,7 +36,8 @@ model Product {
   price          Decimal? @db.Decimal(10, 2)
   imageUrl       String
   link           String?
-  keywords       String?
+  // keywords field - uncomment after running: ALTER TABLE "Product" ADD COLUMN "keywords" TEXT;
+  // keywords       String?
 }
 
 model Area {

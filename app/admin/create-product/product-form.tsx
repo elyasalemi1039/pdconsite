@@ -20,7 +20,6 @@ type ProductForm = {
   productDetails: string;
   price: string;
   link: string;
-  keywords: string;
   imageFile: File | null;
   imagePreview: string | null;
 };
@@ -38,7 +37,6 @@ export default function CreateProductForm() {
       productDetails: "",
       price: "",
       link: "",
-      keywords: "",
       imageFile: null,
       imagePreview: null,
     },
@@ -63,7 +61,6 @@ export default function CreateProductForm() {
         productDetails: "",
         price: "",
         link: "",
-        keywords: "",
         imageFile: null,
         imagePreview: null,
       },
@@ -139,7 +136,6 @@ export default function CreateProductForm() {
         const cleanPrice = form.price.trim();
         formData.append("price", cleanPrice);
         formData.append("link", form.link.trim());
-        formData.append("keywords", form.keywords.trim());
         formData.append("image", compressedFile);
 
         const res = await fetch("/api/admin/products", {
@@ -317,24 +313,6 @@ export default function CreateProductForm() {
                   />
                   <p className="text-xs text-slate-500">
                     URL link to the product page (optional)
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Keywords
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                    value={form.keywords}
-                    onChange={(e) =>
-                      updateForm(form.id, { keywords: e.target.value })
-                    }
-                    placeholder="e.g. black, modern, sink, marble"
-                  />
-                  <p className="text-xs text-slate-500">
-                    Comma-separated keywords for search (optional)
                   </p>
                 </div>
               </div>

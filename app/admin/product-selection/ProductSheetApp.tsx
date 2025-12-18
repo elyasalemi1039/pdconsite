@@ -11,7 +11,6 @@ type ApiProduct = {
   imageUrl: string;
   area: { id: string; name: string };
   link: string | null;
-  keywords: string | null;
 };
 
 type SelectedProduct = {
@@ -83,9 +82,8 @@ export default function ProductSheetApp() {
     if (!q) return [];
     return allProducts.filter((p) => {
       const codeMatch = p.code.toLowerCase().includes(q);
-      const keywordsMatch = p.keywords?.toLowerCase().includes(q) || false;
       const descMatch = p.description.toLowerCase().includes(q);
-      return codeMatch || keywordsMatch || descMatch;
+      return codeMatch || descMatch;
     });
   }, [allProducts, search]);
 
