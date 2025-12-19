@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 
 type Row = {
@@ -15,12 +15,29 @@ type Row = {
   area: string;
 };
 
+type Area = {
+  id: string;
+  name: string;
+};
+
 export default function BwaPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [saving, setSaving] = useState(false);
   const [extracting, setExtracting] = useState(false);
-  const [selectedArea, setSelectedArea] = useState("Kitchen");
+  const [areas, setAreas] = useState<Area[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    // Fetch areas from database
+    fetch("/api/admin/areas")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.areas) {
+          setAreas(data.areas);
+        }
+      })
+      .catch(() => toast.error("Failed to load areas"));
+  }, []);
 
   const handleFile = async (file: File) => {
     setExtracting(true);
@@ -45,7 +62,7 @@ export default function BwaPage() {
             keywords: "",
             link: "",
             productDetails: "",
-            area: selectedArea,
+            area: areas[0]?.name || "Kitchen",
           })) || [];
         if (imported.length === 0) {
           toast.error("No products detected in file.");
@@ -81,8 +98,8 @@ export default function BwaPage() {
     let successCount = 0;
     let errorCount = 0;
 
-    // Process in batches of 3 for speed
-    const batchSize = 3;
+    // Process in batches of 15 for speed
+    const batchSize = 15;
     for (let i = 0; i < validRows.length; i += batchSize) {
       const batch = validRows.slice(i, i + batchSize);
       
@@ -174,24 +191,6 @@ export default function BwaPage() {
                 }}
                 className="text-sm"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Target Area
-              </label>
-              <select
-                value={selectedArea}
-                onChange={(e) => setSelectedArea(e.target.value)}
-                className="rounded border border-slate-300 px-3 py-1.5 text-sm"
-              >
-                <option value="Kitchen">Kitchen</option>
-                <option value="Bathroom">Bathroom</option>
-                <option value="Bedroom">Bedroom</option>
-                <option value="Living Room">Living Room</option>
-                <option value="Laundry">Laundry</option>
-                <option value="Balcony">Balcony</option>
-                <option value="Other">Other</option>
-              </select>
             </div>
             {extracting && <span className="text-sm text-slate-500">Extracting...</span>}
           </div>
@@ -313,13 +312,11 @@ export default function BwaPage() {
                               value={r.area}
                               onChange={(e) => update(r.id, "area", e.target.value)}
                             >
-                              <option value="Kitchen">Kitchen</option>
-                              <option value="Bathroom">Bathroom</option>
-                              <option value="Bedroom">Bedroom</option>
-                              <option value="Living Room">Living Room</option>
-                              <option value="Laundry">Laundry</option>
-                              <option value="Balcony">Balcony</option>
-                              <option value="Other">Other</option>
+                              {areas.map((area) => (
+                                <option key={area.id} value={area.name}>
+                                  {area.name}
+                                </option>
+                              ))}
                             </select>
                           </div>
                           <div>

@@ -1,36 +1,160 @@
-import Image from "next/image";
+"use client";
 
-import { Button } from "@/components/ui/button";
-import { requireAdmin } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { useEffect, useState } from "react";
+import toast, { Toaster } from "react-hot-toast";
 
-export const revalidate = 0;
+type Area = {
+  id: string;
+  name: string;
+};
 
-export default async function ViewProductsPage() {
-  await requireAdmin();
+type Product = {
+  id: string;
+  code: string;
+  description: string;
+  productDetails: string | null;
+  imageUrl: string;
+  link: string | null;
+  brand: string | null;
+  keywords: string | null;
+  areaId: string;
+  area: Area;
+  createdAt: string;
+};
 
-  const products = await prisma.product.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    include: { area: true },
-  });
+export default function ViewProductsPage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Product>>({});
+  const [saving, setSaving] = useState(false);
+
+  const pageSize = 50;
+
+  useEffect(() => {
+    loadAreas();
+    loadProducts();
+  }, [page]);
+
+  const loadAreas = async () => {
+    try {
+      const res = await fetch("/api/admin/areas");
+      const data = await res.json();
+      if (data.areas) {
+        setAreas(data.areas);
+      }
+    } catch (error) {
+      toast.error("Failed to load areas");
+    }
+  };
+
+  const loadProducts = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/products/list?page=${page}&pageSize=${pageSize}`);
+      const data = await res.json();
+      
+      if (data.products) {
+        setProducts((prev) => (page === 1 ? data.products : [...prev, ...data.products]));
+        setHasMore(data.products.length === pageSize);
+      }
+    } catch (error) {
+      toast.error("Failed to load products");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEditing = (product: Product) => {
+    setEditingId(product.id);
+    setEditForm(product);
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditForm({});
+  };
+
+  const saveProduct = async () => {
+    if (!editingId) return;
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/products/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: editForm.code,
+          description: editForm.description,
+          productDetails: editForm.productDetails,
+          link: editForm.link,
+          brand: editForm.brand,
+          keywords: editForm.keywords,
+          areaId: editForm.areaId,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Failed to save product");
+        return;
+      }
+
+      const data = await res.json();
+      setProducts((prev) =>
+        prev.map((p) => (p.id === editingId ? { ...p, ...data.product } : p))
+      );
+      toast.success("Product updated");
+      cancelEditing();
+    } catch (error) {
+      toast.error("Failed to save product");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteProduct = async (id: string, code: string) => {
+    if (!confirm(`Delete product ${code}?`)) return;
+
+    try {
+      const res = await fetch(`/api/admin/products/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Failed to delete product");
+        return;
+      }
+
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      toast.success("Product deleted");
+    } catch (error) {
+      toast.error("Failed to delete product");
+    }
+  };
 
   return (
     <main className="min-h-screen bg-slate-50 py-16 px-4">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <Toaster />
+      <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-slate-500">Admin</p>
-            <h1 className="text-2xl font-semibold text-slate-900">
-              View Products
-            </h1>
+            <h1 className="text-2xl font-semibold text-slate-900">View Products</h1>
             <p className="text-sm text-slate-500">
-              Latest 100 products stored in the system.
+              {products.length} products loaded{hasMore ? ", scroll to load more" : ""}.
             </p>
           </div>
-          <Button asChild variant="outline">
-            <a href="/admin">Back to Admin</a>
-          </Button>
+          <a
+            href="/admin"
+            className="px-4 py-2 text-sm border border-slate-300 rounded hover:bg-white"
+          >
+            Back to Admin
+          </a>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-x-auto">
@@ -44,40 +168,141 @@ export default async function ViewProductsPage() {
                 <th className="p-3">Area</th>
                 <th className="p-3">Keywords</th>
                 <th className="p-3">Created</th>
+                <th className="p-3">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {products.map((p: typeof products[number]) => (
-                <tr key={p.id} className="border-t border-slate-100">
-                  <td className="p-3 font-semibold">
-                    {p.code}
-                  </td>
-                  <td className="p-3">
-                    {p.imageUrl ? (
-                      <img
-                        src={p.imageUrl}
-                        alt={p.description}
-                        className="h-14 w-20 object-cover rounded border border-slate-200"
-                      />
+              {products.map((p) => {
+                const isEditing = editingId === p.id;
+                return (
+                  <tr key={p.id} className="border-t border-slate-100">
+                    {isEditing ? (
+                      <>
+                        <td className="p-3">
+                          <input
+                            type="text"
+                            className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                            value={editForm.code || ""}
+                            onChange={(e) =>
+                              setEditForm({ ...editForm, code: e.target.value.toUpperCase() })
+                            }
+                          />
+                        </td>
+                        <td className="p-3">
+                          <img
+                            src={p.imageUrl || "/no-image.png"}
+                            alt={p.description}
+                            className="h-14 w-20 object-cover rounded border border-slate-200"
+                          />
+                        </td>
+                        <td className="p-3">
+                          <textarea
+                            className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                            value={editForm.description || ""}
+                            onChange={(e) =>
+                              setEditForm({ ...editForm, description: e.target.value })
+                            }
+                            rows={2}
+                          />
+                        </td>
+                        <td className="p-3">
+                          <input
+                            type="text"
+                            className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                            value={editForm.brand || ""}
+                            onChange={(e) => setEditForm({ ...editForm, brand: e.target.value })}
+                          />
+                        </td>
+                        <td className="p-3">
+                          <select
+                            className="w-full rounded border border-slate-300 px-2 py-1 text-sm bg-white"
+                            value={editForm.areaId || ""}
+                            onChange={(e) =>
+                              setEditForm({ ...editForm, areaId: e.target.value })
+                            }
+                          >
+                            {areas.map((area) => (
+                              <option key={area.id} value={area.id}>
+                                {area.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="p-3">
+                          <input
+                            type="text"
+                            className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+                            value={editForm.keywords || ""}
+                            onChange={(e) =>
+                              setEditForm({ ...editForm, keywords: e.target.value })
+                            }
+                          />
+                        </td>
+                        <td className="p-3 text-xs text-slate-500">
+                          {new Date(p.createdAt).toISOString().slice(0, 10)}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={saveProduct}
+                              disabled={saving}
+                              className="text-xs text-green-600 hover:underline disabled:opacity-50"
+                            >
+                              {saving ? "Saving..." : "Save"}
+                            </button>
+                            <button
+                              onClick={cancelEditing}
+                              disabled={saving}
+                              className="text-xs text-slate-600 hover:underline"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </td>
+                      </>
                     ) : (
-                      <div className="h-14 w-20 bg-slate-100 border border-slate-200 rounded" />
+                      <>
+                        <td className="p-3 font-semibold">{p.code}</td>
+                        <td className="p-3">
+                          <img
+                            src={p.imageUrl || "/no-image.png"}
+                            alt={p.description}
+                            className="h-14 w-20 object-cover rounded border border-slate-200"
+                          />
+                        </td>
+                        <td className="p-3">{p.description}</td>
+                        <td className="p-3">{p.brand || "—"}</td>
+                        <td className="p-3">{p.area?.name || "—"}</td>
+                        <td className="p-3 text-xs max-w-[150px] truncate">
+                          {p.keywords || "—"}
+                        </td>
+                        <td className="p-3 text-xs text-slate-500">
+                          {new Date(p.createdAt).toISOString().slice(0, 10)}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => startEditing(p)}
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => deleteProduct(p.id, p.code)}
+                              className="text-xs text-red-600 hover:underline"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </>
                     )}
-                  </td>
-                  <td className="p-3">{p.description}</td>
-                  <td className="p-3">{p.brand || "—"}</td>
-                  <td className="p-3">{p.area?.name || "—"}</td>
-                  <td className="p-3 text-xs max-w-[150px] truncate">{p.keywords || "—"}</td>
-                  <td className="p-3 text-xs text-slate-500">
-                    {p.createdAt.toISOString().slice(0, 10)}
-                  </td>
-                </tr>
-              ))}
-              {products.length === 0 && (
+                  </tr>
+                );
+              })}
+              {products.length === 0 && !loading && (
                 <tr>
-                  <td
-                    colSpan={7}
-                    className="p-4 text-sm text-slate-500 text-center"
-                  >
+                  <td colSpan={8} className="p-4 text-sm text-slate-500 text-center">
                     No products found.
                   </td>
                 </tr>
@@ -85,8 +310,22 @@ export default async function ViewProductsPage() {
             </tbody>
           </table>
         </div>
+
+        {hasMore && !loading && (
+          <div className="text-center">
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              className="px-4 py-2 text-sm bg-amber-500 text-white rounded hover:bg-amber-600"
+            >
+              Load More
+            </button>
+          </div>
+        )}
+
+        {loading && (
+          <div className="text-center text-sm text-slate-500">Loading products...</div>
+        )}
       </div>
     </main>
   );
 }
-
