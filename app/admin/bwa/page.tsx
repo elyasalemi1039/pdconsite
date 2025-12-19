@@ -97,6 +97,7 @@ export default function BwaPage() {
     setSaving(true);
     let successCount = 0;
     let errorCount = 0;
+    let skippedCount = 0;
 
     // Process in batches of 15 for speed
     const batchSize = 15;
@@ -135,28 +136,46 @@ export default function BwaPage() {
 
             if (!res.ok) {
               const data = await res.json();
+              // Check if it's a duplicate error
+              if (data?.error?.includes("already exists")) {
+                console.log(`Skipping duplicate ${r.code}`);
+                return "skipped";
+              }
               console.error(`Failed to import ${r.code}:`, data?.error);
-              return false;
+              return "error";
             }
-            return true;
+            return "success";
           } catch (err) {
             console.error(`Error importing ${r.code}:`, err);
-            return false;
+            return "error";
           }
         })
       );
 
-      successCount += results.filter(Boolean).length;
-      errorCount += results.filter((r) => !r).length;
+      successCount += results.filter((r) => r === "success").length;
+      errorCount += results.filter((r) => r === "error").length;
+      skippedCount += results.filter((r) => r === "skipped").length;
     }
 
     setSaving(false);
 
+    const messages = [];
     if (successCount > 0) {
-      toast.success(`Imported ${successCount} products`);
+      messages.push(`✓ Imported ${successCount} products`);
+    }
+    if (skippedCount > 0) {
+      messages.push(`⊘ Skipped ${skippedCount} duplicates`);
     }
     if (errorCount > 0) {
-      toast.error(`Failed to import ${errorCount} products`);
+      messages.push(`✗ ${errorCount} failed`);
+    }
+
+    if (messages.length > 0) {
+      if (errorCount > 0) {
+        toast.error(messages.join(" | "));
+      } else {
+        toast.success(messages.join(" | "));
+      }
     }
   };
 
