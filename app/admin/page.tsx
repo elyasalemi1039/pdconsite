@@ -37,7 +37,7 @@ export default async function AdminPage() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 gap-4">
             <Link href="/admin/create-product" className="w-full">
-              <Button className="w-full">Create Product</Button>
+              <Button variant="outline" className="w-full">Create Product</Button>
             </Link>
             <Link href="/admin/product-selection" className="w-full">
               <Button variant="outline" className="w-full">
