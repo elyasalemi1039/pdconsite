@@ -120,6 +120,8 @@ function extractProductCodes(text: string): string[] {
           }
         }
       }
+      // Final cleanup: remove any spaces around hyphens (e.g., "MWBT-5- 1500" -> "MWBT-5-1500")
+      codeStr = codeStr.replace(/-\s+/g, "-").replace(/\s+-/g, "-");
       const fullCode = `${category} ${codeStr}`;
       codes.add(fullCode);
     }
