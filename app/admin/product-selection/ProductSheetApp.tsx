@@ -745,11 +745,12 @@ export default function ProductSheetApp() {
                               }`}
                             >
                               {/* Product Image */}
-                              <div className="aspect-video bg-slate-100 relative overflow-hidden flex items-center justify-center">
+                              <div className="aspect-video bg-slate-100 relative overflow-hidden flex items-center justify-center p-2">
                                 <img
                                   src={product.imageUrl || "/no-image.png"}
                                   alt={product.description}
-                                  className="max-w-full max-h-full object-contain"
+                                  className="max-h-full w-auto object-scale-down"
+                                  style={{ maxWidth: '100%', height: 'auto', maxHeight: '100%' }}
                                   onError={(e) => {
                                     (e.target as HTMLImageElement).src = "/no-image.png";
                                   }}
@@ -826,11 +827,11 @@ export default function ProductSheetApp() {
                 <div key={item.id} className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                   <div className="flex items-start gap-4">
                     {/* Thumbnail */}
-                    <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-slate-200 flex items-center justify-center">
+                    <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-slate-200 flex items-center justify-center p-1">
                       <img
                         src={item.imageUrl || "/no-image.png"}
                         alt={item.description}
-                        className="max-w-full max-h-full object-contain"
+                        style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', objectFit: 'scale-down' }}
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = "/no-image.png";
                         }}

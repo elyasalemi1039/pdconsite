@@ -106,6 +106,40 @@ export async function POST(req: Request) {
   }
 
   // Always load ImageModule (needed for placeholder images too)
+  // Helper to get image dimensions from base64
+  const getImageDimensions = (base64: string): { width: number; height: number } | null => {
+    try {
+      const buffer = Buffer.from(base64, "base64");
+      // Check for PNG
+      if (buffer[0] === 0x89 && buffer[1] === 0x50) {
+        const width = buffer.readUInt32BE(16);
+        const height = buffer.readUInt32BE(20);
+        return { width, height };
+      }
+      // Check for JPEG
+      if (buffer[0] === 0xff && buffer[1] === 0xd8) {
+        let offset = 2;
+        while (offset < buffer.length) {
+          if (buffer[offset] !== 0xff) break;
+          const marker = buffer[offset + 1];
+          if (marker === 0xc0 || marker === 0xc2) {
+            const height = buffer.readUInt16BE(offset + 5);
+            const width = buffer.readUInt16BE(offset + 7);
+            return { width, height };
+          }
+          const segmentLength = buffer.readUInt16BE(offset + 2);
+          offset += 2 + segmentLength;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const MAX_WIDTH = 132;
+  const MAX_HEIGHT = 113;
+
   const imageModule = new ImageModule({
     centered: false,
     getImage: (value: string) => {
@@ -115,7 +149,25 @@ export async function POST(req: Request) {
       }
       return Buffer.from(value, "base64");
     },
-    getSize: () => [132, 113],
+    getSize: (imgBuffer: Buffer, _tagValue: string, _tagName: string) => {
+      // Try to get actual dimensions and scale proportionally
+      const base64 = imgBuffer.toString("base64");
+      const dims = getImageDimensions(base64);
+      
+      if (!dims || dims.width === 0 || dims.height === 0) {
+        // Fallback to max size if we can't read dimensions
+        return [MAX_WIDTH, MAX_HEIGHT];
+      }
+
+      const { width, height } = dims;
+      
+      // Calculate scale to fit within max bounds while maintaining aspect ratio
+      const scaleW = MAX_WIDTH / width;
+      const scaleH = MAX_HEIGHT / height;
+      const scale = Math.min(scaleW, scaleH, 1); // Never upscale
+      
+      return [Math.round(width * scale), Math.round(height * scale)];
+    },
   });
 
   let doc: Docxtemplater;
