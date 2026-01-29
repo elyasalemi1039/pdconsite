@@ -53,7 +53,15 @@ export default function AreasPage() {
     <main className="min-h-screen bg-slate-50 py-16 px-4">
       <Toaster />
       <div className="max-w-3xl mx-auto space-y-6">
-        <h1 className="text-2xl font-semibold text-slate-900">Areas</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold text-slate-900">Areas</h1>
+          <a
+            href="/admin"
+            className="px-4 py-2 text-sm border border-slate-300 rounded hover:bg-white"
+          >
+            Back to Admin
+          </a>
+        </div>
 
         <form
           onSubmit={handleAdd}
