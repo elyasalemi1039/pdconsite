@@ -8,54 +8,85 @@ export const dynamic = "force-dynamic";
 
 /**
  * Parse PDF to extract product codes
- * Looks for alphanumeric codes that match BWA patterns
+ * BWA codes typically have format like:
+ * - BWAXXXXX (with BWA prefix)
+ * - Just the code after BWA is stripped (e.g., T123, BAM001, etc.)
  */
 function extractProductCodes(text: string): string[] {
   const codes = new Set<string>();
-  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  
+  // BWA format: look for "BWA" prefix followed by code
+  // e.g., "BWA-T123" or "BWAT123" or "BWA T123"
+  const bwaRegex = /\bBWA[-\s]?([A-Z0-9][A-Z0-9\-_.]{1,30})\b/gi;
+  let match;
+  while ((match = bwaRegex.exec(text)) !== null) {
+    const code = match[1].toUpperCase().trim();
+    if (code.length >= 2 && code.length <= 30) {
+      codes.add(code);
+    }
+  }
 
-  // Pattern for product codes - alphanumeric with possible dashes/underscores
-  // BWA codes are typically uppercase letters + numbers
+  // Also look for standalone product codes that match common patterns
+  // Pattern: 2-4 letters followed by numbers and possibly more characters
   const codePatterns = [
-    /\b([A-Z]{2,}[\-_]?[A-Z0-9]{2,}[\-_]?[A-Z0-9]*)\b/g, // e.g. BW-001, ABC123
-    /\b([A-Z][A-Z0-9]{4,20})\b/g, // e.g. PROD12345
-    /\b([A-Z]{2,4}\d{3,})\b/g, // e.g. BW001, ABC1234
+    /\b([A-Z]{1,4}[-]?\d{2,}[A-Z0-9\-_.]*)\b/g,  // e.g., T123, BAM001, WB-450
+    /\b([A-Z]{2,}[-]?\d+[-]?[A-Z0-9]*)\b/g,       // e.g., BAM001, TB123
+    /\b(\d{5,}[A-Z]*)\b/g,                         // e.g., 12345, 123456A
   ];
 
+  const lines = text.split("\n");
+  
   for (const line of lines) {
+    const trimmedLine = line.trim();
+    
     // Skip header/footer lines
     if (
-      line.toLowerCase().includes("product code") ||
-      line.toLowerCase().includes("description") ||
-      line.toLowerCase().includes("subtotal") ||
-      line.toLowerCase().includes("total:") ||
-      line.toLowerCase().includes("gst") ||
-      line.toLowerCase().includes("page ")
+      trimmedLine.toLowerCase().includes("product code") ||
+      trimmedLine.toLowerCase().includes("description") ||
+      trimmedLine.toLowerCase().includes("subtotal") ||
+      trimmedLine.toLowerCase().includes("total:") ||
+      trimmedLine.toLowerCase().includes("total ") ||
+      trimmedLine.toLowerCase().includes("gst") ||
+      trimmedLine.toLowerCase().includes("page ") ||
+      trimmedLine.toLowerCase().includes("phone") ||
+      trimmedLine.toLowerCase().includes("email") ||
+      trimmedLine.toLowerCase().includes("www.") ||
+      trimmedLine.toLowerCase().includes(".com")
     ) {
       continue;
     }
 
     for (const pattern of codePatterns) {
-      const matches = line.matchAll(pattern);
-      for (const match of matches) {
+      pattern.lastIndex = 0;
+      while ((match = pattern.exec(trimmedLine)) !== null) {
         const code = match[1].toUpperCase();
         // Filter out common non-product strings
+        const skipWords = [
+          "DATE", "QUOTE", "ORDER", "TOTAL", "PRICE", "ITEM", "CODE", 
+          "DESC", "NAME", "PAGE", "FROM", "SENT", "EMAIL", "PHONE", 
+          "ADDRESS", "QTY", "QUANTITY", "UNIT", "AMOUNT", "ABN", "ACN"
+        ];
+        
         if (
-          code.length >= 4 &&
+          code.length >= 3 &&
           code.length <= 30 &&
-          !["DATE", "QUOTE", "ORDER", "TOTAL", "PRICE", "ITEM", "CODE", "DESC", "NAME", "PAGE", "FROM", "SENT", "EMAIL", "PHONE", "ADDRESS"].includes(code)
+          !skipWords.includes(code)
         ) {
           codes.add(code);
         }
       }
     }
 
-    // Also try to extract from table-like structures
-    // Split by multiple spaces and check first column
-    const parts = line.split(/\s{2,}/).filter(Boolean);
+    // Also try splitting by whitespace and checking first "column"
+    const parts = trimmedLine.split(/\s{2,}/).filter(Boolean);
     if (parts.length >= 2) {
       const potentialCode = parts[0].trim().toUpperCase();
-      if (/^[A-Z][A-Z0-9\-_]{3,}$/.test(potentialCode)) {
+      // Looks like a product code if alphanumeric mix
+      if (
+        /^[A-Z0-9][A-Z0-9\-_.]{2,}$/i.test(potentialCode) &&
+        potentialCode.length >= 3 &&
+        potentialCode.length <= 30
+      ) {
         codes.add(potentialCode);
       }
     }
@@ -101,11 +132,15 @@ export async function POST(req: Request) {
     }
 
     // Look up matching products in the database
+    // Try both exact match and case-insensitive
     const matchingProducts = await prisma.product.findMany({
       where: {
-        code: {
-          in: extractedCodes,
-        },
+        OR: extractedCodes.map(code => ({
+          code: {
+            equals: code,
+            mode: "insensitive" as const,
+          },
+        })),
       },
       include: {
         area: true,
@@ -113,8 +148,8 @@ export async function POST(req: Request) {
     });
 
     // Track which codes were found and which weren't
-    const foundCodes = new Set(matchingProducts.map((p) => p.code));
-    const notFoundCodes = extractedCodes.filter((c) => !foundCodes.has(c));
+    const foundCodes = new Set(matchingProducts.map((p) => p.code.toUpperCase()));
+    const notFoundCodes = extractedCodes.filter((c) => !foundCodes.has(c.toUpperCase()));
 
     return NextResponse.json({
       success: true,

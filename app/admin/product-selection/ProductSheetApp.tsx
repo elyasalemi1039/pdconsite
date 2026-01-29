@@ -73,10 +73,10 @@ export default function ProductSheetApp() {
         const data = await resp.json();
         setAllProducts(data.products || []);
       } catch (err) {
-          setMessage({
-            type: "error",
-            text: err instanceof Error ? err.message : "Failed to fetch products",
-          });
+        setMessage({
+          type: "error",
+          text: err instanceof Error ? err.message : "Failed to fetch products",
+        });
       } finally {
         setLoadingProducts(false);
       }
@@ -383,20 +383,20 @@ export default function ProductSheetApp() {
   const hasActiveFilters = searchQuery.trim() || selectedAreaFilter !== "all" || selectedBrandFilter !== "all";
 
   return (
-    <main className="min-h-screen bg-[#2A2F38] py-8 px-4">
+    <main className="min-h-screen bg-slate-50 py-16 px-4">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-slate-400">Admin</p>
-            <h1 className="text-2xl font-semibold text-white">Product Selection</h1>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-slate-500">Admin</p>
+            <h1 className="text-2xl font-semibold text-slate-900">Product Selection</h1>
+            <p className="text-sm text-slate-500">
               Select products to generate a selection document
             </p>
           </div>
           <a
             href="/admin"
-            className="px-4 py-2 text-sm border border-slate-500 text-slate-300 rounded hover:bg-slate-700 transition-colors"
+            className="px-4 py-2 text-sm border border-slate-300 rounded hover:bg-white"
           >
             Back to Admin
           </a>
@@ -407,10 +407,10 @@ export default function ProductSheetApp() {
           <div
             className={`rounded-lg px-4 py-3 text-sm ${
               message.type === "success"
-                ? "bg-green-900/50 border border-green-700 text-green-300"
+                ? "bg-green-100 border border-green-300 text-green-800"
                 : message.type === "info"
-                ? "bg-blue-900/50 border border-blue-700 text-blue-300"
-                : "bg-red-900/50 border border-red-700 text-red-300"
+                ? "bg-blue-100 border border-blue-300 text-blue-800"
+                : "bg-red-100 border border-red-300 text-red-800"
             }`}
           >
             {message.text}
@@ -418,19 +418,19 @@ export default function ProductSheetApp() {
         )}
 
         {/* PDF Upload Zone */}
-        <div className="bg-[#36454f] rounded-xl border border-slate-600 p-6">
-          <h2 className="text-lg font-semibold text-white mb-2">📄 Import from BWA PDF</h2>
-          <p className="text-sm text-slate-400 mb-4">
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">📄 Import from BWA PDF</h2>
+          <p className="text-sm text-slate-600 mb-4">
             Upload a BWA quote/order PDF to automatically select matching products from your database.
           </p>
           <div
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            className={`relative rounded-xl border-2 border-dashed transition-all duration-200 cursor-pointer ${
+            className={`relative rounded-lg border-2 border-dashed transition-all duration-200 cursor-pointer ${
               isDragging
-                ? "border-[#00f0ff] bg-[#00f0ff]/10"
-                : "border-slate-500 hover:border-[#00f0ff]/60"
+                ? "border-amber-500 bg-amber-50"
+                : "border-slate-300 hover:border-amber-400"
             } ${parsingPdf ? "opacity-60 pointer-events-none" : ""}`}
           >
             <input
@@ -442,12 +442,12 @@ export default function ProductSheetApp() {
             />
             <div className="flex flex-col items-center justify-center py-8 px-6">
               <div
-                className={`w-14 h-14 rounded-full flex items-center justify-center mb-3 ${
-                  isDragging ? "bg-[#00f0ff]/20" : "bg-slate-600"
+                className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
+                  isDragging ? "bg-amber-100" : "bg-slate-100"
                 }`}
               >
                 {parsingPdf ? (
-                  <svg className="w-7 h-7 text-[#00f0ff] animate-spin" fill="none" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6 text-amber-500 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path
                       className="opacity-75"
@@ -457,7 +457,7 @@ export default function ProductSheetApp() {
                   </svg>
                 ) : (
                   <svg
-                    className={`w-7 h-7 ${isDragging ? "text-[#00f0ff]" : "text-slate-400"}`}
+                    className={`w-6 h-6 ${isDragging ? "text-amber-500" : "text-slate-400"}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -471,143 +471,128 @@ export default function ProductSheetApp() {
                   </svg>
                 )}
               </div>
-              <p className="text-base font-medium text-white mb-1">
+              <p className="text-sm font-medium text-slate-700 mb-1">
                 {parsingPdf ? "Extracting products..." : isDragging ? "Drop PDF here" : "Upload BWA PDF"}
               </p>
-              <p className="text-sm text-slate-400 text-center">
+              <p className="text-xs text-slate-500 text-center">
                 {parsingPdf ? "Matching product codes with database..." : "Drag and drop, or click to browse"}
               </p>
             </div>
           </div>
 
           {pdfParseInfo && pdfParseInfo.notFound.length > 0 && (
-            <div className="mt-4 px-4 py-3 rounded-lg bg-amber-900/30 border border-amber-700/50">
-              <p className="text-sm font-medium text-amber-400 mb-1">Codes not found in database:</p>
-              <p className="text-xs text-amber-300/80">{pdfParseInfo.notFound.join(", ")}</p>
+            <div className="mt-4 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200">
+              <p className="text-sm font-medium text-amber-700 mb-1">Codes not found in database:</p>
+              <p className="text-xs text-amber-600">{pdfParseInfo.notFound.join(", ")}</p>
             </div>
           )}
         </div>
 
         {/* Document Details */}
-        <div className="bg-[#36454f] rounded-xl border border-slate-600 p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">📄 Document Details</h2>
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">📄 Document Details</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Address *</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Address *</label>
               <input
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="Property address"
-                className="w-full rounded-lg border border-slate-500 bg-slate-700 px-3 py-2 text-white placeholder-slate-400 focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Date</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg border border-slate-500 bg-slate-700 px-3 py-2 text-white focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               />
             </div>
           </div>
         </div>
 
         {/* Client Details */}
-        <div className="bg-[#36454f] rounded-xl border border-slate-600 p-6">
-          <h2 className="text-lg font-semibold text-white mb-4">👤 Client Details</h2>
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">👤 Client Details</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Contact Name</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Contact Name</label>
               <input
                 value={contactName}
                 onChange={(e) => setContactName(e.target.value)}
                 placeholder="John Smith"
-                className="w-full rounded-lg border border-slate-500 bg-slate-700 px-3 py-2 text-white placeholder-slate-400 focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Company</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Company</label>
               <input
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
                 placeholder="Company name"
-                className="w-full rounded-lg border border-slate-500 bg-slate-700 px-3 py-2 text-white placeholder-slate-400 focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Phone</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
               <input
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 placeholder="0400 000 000"
-                className="w-full rounded-lg border border-slate-500 bg-slate-700 px-3 py-2 text-white placeholder-slate-400 focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="client@example.com"
-                className="w-full rounded-lg border border-slate-500 bg-slate-700 px-3 py-2 text-white placeholder-slate-400 focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               />
             </div>
           </div>
         </div>
 
         {/* Search and Filters */}
-        <div className="bg-[#36454f] rounded-xl border border-slate-600 p-6">
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white">🔍 Search & Filter Products</h2>
+            <h2 className="text-lg font-semibold text-slate-900">🔍 Search & Filter Products</h2>
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="text-sm text-[#00f0ff] hover:underline"
+                className="text-sm text-amber-600 hover:underline"
               >
                 Clear all filters
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Search Input */}
-            <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-slate-300 mb-1">
-                Search (code, description, brand, keywords, details)
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Search (code, description, brand, keywords)
               </label>
-              <div className="relative">
-            <input
-              type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Type to search across all product fields..."
-                  className="w-full rounded-lg border border-slate-500 bg-slate-700 px-3 py-2 pl-10 text-white placeholder-slate-400 focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none"
-                />
-                <svg
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Type to search..."
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+              />
             </div>
 
             {/* Area Filter */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Filter by Area</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Area</label>
               <select
                 value={selectedAreaFilter}
                 onChange={(e) => setSelectedAreaFilter(e.target.value)}
-                className="w-full rounded-lg border border-slate-500 bg-slate-700 px-3 py-2 text-white focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               >
                 <option value="all">All Areas</option>
                 {areaNames.map((area) => (
@@ -620,11 +605,11 @@ export default function ProductSheetApp() {
 
             {/* Brand Filter */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1">Filter by Brand</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Brand</label>
               <select
                 value={selectedBrandFilter}
                 onChange={(e) => setSelectedBrandFilter(e.target.value)}
-                className="w-full rounded-lg border border-slate-500 bg-slate-700 px-3 py-2 text-white focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               >
                 <option value="all">All Brands</option>
                 {brandNames.map((brand) => (
@@ -634,26 +619,21 @@ export default function ProductSheetApp() {
                 ))}
               </select>
             </div>
-
-            {/* Results Count */}
-            <div className="flex items-end">
-              <span className="text-sm text-slate-400">
-                Showing {filteredProducts.length} of {allProducts.length} products
-              </span>
-            </div>
           </div>
+          
+          <p className="text-xs text-slate-500 mt-2">
+            Showing {filteredProducts.length} of {allProducts.length} products
+          </p>
         </div>
 
         {/* Area Dropdowns */}
-        <div className="bg-[#36454f] rounded-xl border border-slate-600 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white">📦 Select Products by Area</h2>
-          </div>
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">📦 Select Products by Area</h2>
 
           {loadingProducts ? (
-            <div className="text-center py-8 text-slate-400">Loading products...</div>
+            <div className="text-center py-8 text-slate-500">Loading products...</div>
           ) : filteredAreaNames.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">
+            <div className="text-center py-8 text-slate-500">
               {hasActiveFilters ? "No products match your filters" : "No products found"}
             </div>
           ) : (
@@ -666,15 +646,15 @@ export default function ProductSheetApp() {
                 ).length;
 
                 return (
-                  <div key={areaName} className="border border-slate-500 rounded-lg overflow-hidden">
+                  <div key={areaName} className="border border-slate-200 rounded-lg overflow-hidden">
                     {/* Area Header */}
                     <button
                       onClick={() => toggleArea(areaName)}
-                      className="w-full flex items-center justify-between px-4 py-3 bg-slate-700 hover:bg-slate-600 transition-colors"
+                      className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
                     >
                       <div className="flex items-center gap-3">
                         <svg
-                          className={`w-5 h-5 text-slate-400 transition-transform ${
+                          className={`w-4 h-4 text-slate-500 transition-transform ${
                             isExpanded ? "rotate-90" : ""
                           }`}
                           fill="none"
@@ -683,11 +663,11 @@ export default function ProductSheetApp() {
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
-                        <span className="text-white font-medium">{areaName}</span>
-                        <span className="text-sm text-slate-400">({areaProducts.length} products)</span>
+                        <span className="text-slate-900 font-medium">{areaName}</span>
+                        <span className="text-sm text-slate-500">({areaProducts.length} products)</span>
                       </div>
                       {selectedInArea > 0 && (
-                        <span className="bg-[#00f0ff] text-[#36454f] text-xs font-bold px-2 py-1 rounded">
+                        <span className="bg-amber-500 text-white text-xs font-bold px-2 py-1 rounded">
                           {selectedInArea} selected
                         </span>
                       )}
@@ -695,20 +675,20 @@ export default function ProductSheetApp() {
 
                     {/* Area Products */}
                     {isExpanded && (
-                      <div className="bg-slate-800 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-white">
                         {areaProducts.map((product) => {
-                  const isSelected = selected.some((s) => s.id === product.id);
-                  return (
-                    <div
-                      key={product.id}
+                          const isSelected = selected.some((s) => s.id === product.id);
+                          return (
+                            <div
+                              key={product.id}
                               className={`rounded-lg border-2 overflow-hidden transition-all ${
                                 isSelected
-                                  ? "border-[#00f0ff] bg-[#00f0ff]/10"
-                                  : "border-slate-600 bg-slate-700 hover:border-slate-500"
+                                  ? "border-amber-500 bg-amber-50"
+                                  : "border-slate-200 hover:border-slate-300"
                               }`}
                             >
                               {/* Product Image */}
-                              <div className="aspect-video bg-slate-600 relative overflow-hidden">
+                              <div className="aspect-video bg-slate-100 relative overflow-hidden">
                                 <img
                                   src={product.imageUrl || "/no-image.png"}
                                   alt={product.description}
@@ -718,7 +698,7 @@ export default function ProductSheetApp() {
                                   }}
                                 />
                                 {isSelected && (
-                                  <div className="absolute top-2 right-2 bg-[#00f0ff] text-[#36454f] p-1 rounded-full">
+                                  <div className="absolute top-2 right-2 bg-amber-500 text-white p-1 rounded-full">
                                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                                       <path
                                         fillRule="evenodd"
@@ -733,16 +713,16 @@ export default function ProductSheetApp() {
                               {/* Product Info */}
                               <div className="p-3">
                                 <div className="flex items-start justify-between gap-2 mb-2">
-                                  <span className="bg-slate-600 text-white text-xs font-bold px-2 py-1 rounded">
-                          {product.code}
+                                  <span className="bg-slate-200 text-slate-800 text-xs font-bold px-2 py-1 rounded">
+                                    {product.code}
                                   </span>
                                   {product.brand && (
-                                    <span className="text-xs text-slate-400">{product.brand}</span>
+                                    <span className="text-xs text-slate-500">{product.brand}</span>
                                   )}
-                        </div>
-                                <p className="text-sm text-white mb-2 line-clamp-2">{product.description}</p>
+                                </div>
+                                <p className="text-sm text-slate-800 mb-2 line-clamp-2">{product.description}</p>
                                 {product.productDetails && (
-                                  <p className="text-xs text-slate-400 mb-3 line-clamp-2">
+                                  <p className="text-xs text-slate-500 mb-3 line-clamp-2">
                                     {product.productDetails}
                                   </p>
                                 )}
@@ -750,35 +730,35 @@ export default function ProductSheetApp() {
                                   onClick={() =>
                                     isSelected ? removeFromSelected(product.id) : addProductToSelected(product)
                                   }
-                                  className={`w-full py-2 rounded-lg text-sm font-medium transition-colors ${
+                                  className={`w-full py-2 rounded-md text-sm font-medium transition-colors ${
                                     isSelected
-                                      ? "bg-red-600 hover:bg-red-700 text-white"
-                                      : "bg-[#00f0ff] hover:bg-[#00d4e0] text-[#36454f]"
+                                      ? "bg-red-500 hover:bg-red-600 text-white"
+                                      : "bg-amber-500 hover:bg-amber-600 text-white"
                                   }`}
                                 >
                                   {isSelected ? "Remove" : "Add to Selection"}
                                 </button>
-                        </div>
+                              </div>
                             </div>
                           );
                         })}
                       </div>
                     )}
-                    </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 
         {/* Selected Products */}
         {selected.length > 0 && (
-          <div className="bg-[#36454f] rounded-xl border border-slate-600 p-6">
+          <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">✅ Selected Products ({selected.length})</h2>
+              <h2 className="text-lg font-semibold text-slate-900">✅ Selected Products ({selected.length})</h2>
               <button
                 onClick={() => setSelected([])}
-                className="text-sm text-red-400 hover:text-red-300"
+                className="text-sm text-red-500 hover:underline"
               >
                 Clear All
               </button>
@@ -786,10 +766,10 @@ export default function ProductSheetApp() {
 
             <div className="space-y-4">
               {selected.map((item) => (
-                <div key={item.id} className="bg-slate-700 rounded-lg p-4 border border-slate-600">
+                <div key={item.id} className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                   <div className="flex items-start gap-4">
                     {/* Thumbnail */}
-                    <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-slate-600">
+                    <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-slate-200">
                       <img
                         src={item.imageUrl || "/no-image.png"}
                         alt={item.description}
@@ -803,18 +783,18 @@ export default function ProductSheetApp() {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="bg-slate-600 text-white text-xs font-bold px-2 py-1 rounded">
-                    {item.code}
+                        <span className="bg-slate-200 text-slate-800 text-xs font-bold px-2 py-1 rounded">
+                          {item.code}
                         </span>
-                        <span className="text-xs text-slate-400">{item.areaName}</span>
+                        <span className="text-xs text-slate-500">{item.areaName}</span>
                       </div>
-                      <p className="text-sm text-white truncate">{item.description}</p>
-                  </div>
+                      <p className="text-sm text-slate-800 truncate">{item.description}</p>
+                    </div>
 
                     {/* Remove Button */}
                     <button
                       onClick={() => removeFromSelected(item.id)}
-                      className="text-red-400 hover:text-red-300 p-1"
+                      className="text-red-500 hover:text-red-600 p-1"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -823,25 +803,25 @@ export default function ProductSheetApp() {
                   </div>
 
                   {/* Qty and Notes */}
-                  <div className="mt-3 grid grid-cols-[100px_1fr] gap-3">
+                  <div className="mt-3 grid grid-cols-[80px_1fr] gap-3">
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">Quantity</label>
-                  <input
+                      <label className="block text-xs text-slate-500 mb-1">Qty</label>
+                      <input
                         type="text"
-                    placeholder="Qty"
-                    value={item.quantity}
-                    onChange={(e) => updateSelected(item.id, "quantity", e.target.value)}
-                        className="w-full rounded-lg border border-slate-500 bg-slate-600 px-3 py-2 text-white text-sm placeholder-slate-400 focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none"
+                        placeholder="Qty"
+                        value={item.quantity}
+                        onChange={(e) => updateSelected(item.id, "quantity", e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-slate-400 mb-1">Notes</label>
+                      <label className="block text-xs text-slate-500 mb-1">Notes</label>
                       <textarea
                         placeholder="Additional notes..."
-                    value={item.notes}
-                    onChange={(e) => updateSelected(item.id, "notes", e.target.value)}
+                        value={item.notes}
+                        onChange={(e) => updateSelected(item.id, "notes", e.target.value)}
                         rows={2}
-                        className="w-full rounded-lg border border-slate-500 bg-slate-600 px-3 py-2 text-white text-sm placeholder-slate-400 focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none resize-none"
+                        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
                       />
                     </div>
                   </div>
@@ -858,14 +838,14 @@ export default function ProductSheetApp() {
               type="checkbox"
               checked={downloadAsWord}
               onChange={(e) => setDownloadAsWord(e.target.checked)}
-              className="w-4 h-4 rounded border-slate-500 bg-slate-700 text-[#00f0ff] focus:ring-[#00f0ff]"
+              className="w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
             />
-            <span className="text-sm text-slate-300">Download as Word (.docx)</span>
+            <span className="text-sm text-slate-600">Download as Word (.docx)</span>
           </label>
           <button
             onClick={generateDocument}
             disabled={generating}
-            className="px-6 py-3 rounded-lg bg-[#00f0ff] hover:bg-[#00d4e0] text-[#36454f] font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-3 rounded-md bg-amber-500 hover:bg-amber-600 text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {generating ? "⏳ Generating..." : `📥 Generate ${downloadAsWord ? "Word" : "PDF"}`}
           </button>
