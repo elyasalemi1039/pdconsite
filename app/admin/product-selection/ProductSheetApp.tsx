@@ -745,11 +745,11 @@ export default function ProductSheetApp() {
                               }`}
                             >
                               {/* Product Image */}
-                              <div className="aspect-video bg-slate-100 relative overflow-hidden">
+                              <div className="aspect-video bg-slate-100 relative overflow-hidden flex items-center justify-center">
                                 <img
                                   src={product.imageUrl || "/no-image.png"}
                                   alt={product.description}
-                                  className="w-full h-full object-cover"
+                                  className="max-w-full max-h-full object-contain"
                                   onError={(e) => {
                                     (e.target as HTMLImageElement).src = "/no-image.png";
                                   }}
@@ -826,11 +826,11 @@ export default function ProductSheetApp() {
                 <div key={item.id} className="bg-slate-50 rounded-lg p-4 border border-slate-200">
                   <div className="flex items-start gap-4">
                     {/* Thumbnail */}
-                    <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-slate-200">
+                    <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-slate-200 flex items-center justify-center">
                       <img
                         src={item.imageUrl || "/no-image.png"}
                         alt={item.description}
-                        className="w-full h-full object-cover"
+                        className="max-w-full max-h-full object-contain"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = "/no-image.png";
                         }}
