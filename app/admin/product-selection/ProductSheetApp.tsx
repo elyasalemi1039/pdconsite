@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type ApiProduct = {
   id: string;
@@ -31,11 +32,20 @@ type Message = { type: "success" | "error" | "info"; text: string };
 const API_BASE = "/api/admin/product-selection";
 
 export default function ProductSheetApp() {
+  const searchParams = useSearchParams();
+  const continueId = searchParams.get("continue");
+
   const [message, setMessage] = useState<Message | null>(null);
   const [generating, setGenerating] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [loadingSelection, setLoadingSelection] = useState(false);
   const [parsingPdf, setParsingPdf] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+
+  // Selection ID (for continuing/updating saved selections)
+  const [selectionId, setSelectionId] = useState<string | null>(null);
 
   const [address, setAddress] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
@@ -58,6 +68,9 @@ export default function ProductSheetApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedAreaFilter, setSelectedAreaFilter] = useState<string>("all");
   const [selectedBrandFilter, setSelectedBrandFilter] = useState<string>("all");
+
+  // Auto-save debounce ref
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load all products on mount
   useEffect(() => {
@@ -84,6 +97,117 @@ export default function ProductSheetApp() {
     };
     loadAllProducts();
   }, []);
+
+  // Load saved selection if continuing
+  useEffect(() => {
+    if (!continueId) return;
+
+    const loadSavedSelection = async () => {
+      setLoadingSelection(true);
+      try {
+        const resp = await fetch(`/api/admin/saved-selections/${continueId}`);
+        if (!resp.ok) {
+          const errBody = await resp.json().catch(() => ({}));
+          throw new Error(errBody?.error || "Failed to load saved selection");
+        }
+        const data = await resp.json();
+        const selection = data.selection;
+
+        if (selection) {
+          setSelectionId(selection.id);
+          setAddress(selection.address || "");
+          setDate(selection.date || new Date().toISOString().split("T")[0]);
+          setContactName(selection.contactName || "");
+          setCompany(selection.company || "");
+          setPhoneNumber(selection.phoneNumber || "");
+          setEmail(selection.email || "");
+          
+          // Load products - they are stored with all their info
+          if (Array.isArray(selection.products)) {
+            setSelected(selection.products);
+          }
+
+          setMessage({ type: "success", text: "Selection loaded successfully" });
+        }
+      } catch (err) {
+        setMessage({
+          type: "error",
+          text: err instanceof Error ? err.message : "Failed to load selection",
+        });
+      } finally {
+        setLoadingSelection(false);
+      }
+    };
+
+    loadSavedSelection();
+  }, [continueId]);
+
+  // Save selection function
+  const saveSelection = useCallback(async (showMessage = true) => {
+    if (!address.trim()) return; // Don't save without address
+
+    setSaving(true);
+    try {
+      const resp = await fetch("/api/admin/saved-selections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectionId,
+          address: address.trim(),
+          date,
+          contactName: contactName.trim(),
+          company: company.trim(),
+          phoneNumber: phoneNumber.trim(),
+          email: email.trim(),
+          products: selected,
+          status: "draft",
+        }),
+      });
+
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(errBody?.error || "Failed to save selection");
+      }
+
+      const data = await resp.json();
+      if (data.selection?.id && !selectionId) {
+        setSelectionId(data.selection.id);
+      }
+      setLastSaved(new Date());
+      if (showMessage) {
+        setMessage({ type: "success", text: "Selection saved" });
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+      if (showMessage) {
+        setMessage({
+          type: "error",
+          text: err instanceof Error ? err.message : "Failed to save",
+        });
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [address, date, contactName, company, phoneNumber, email, selected, selectionId]);
+
+  // Auto-save when data changes (debounced)
+  useEffect(() => {
+    if (!address.trim()) return; // Don't auto-save without address
+
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+    }
+
+    autoSaveTimeoutRef.current = setTimeout(() => {
+      saveSelection(false);
+    }, 3000); // Auto-save after 3 seconds of no changes
+
+    return () => {
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+    };
+  }, [address, date, contactName, company, phoneNumber, email, selected, saveSelection]);
 
   // Get unique area names for filter
   const areaNames = useMemo(() => {
@@ -394,18 +518,53 @@ export default function ProductSheetApp() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-slate-500">Admin</p>
-            <h1 className="text-2xl font-semibold text-slate-900">Product Selection</h1>
-            <p className="text-sm text-slate-500">
-              Select products to generate a selection document
-            </p>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              Product Selection
+              {selectionId && <span className="text-sm font-normal text-slate-400 ml-2">(Editing saved)</span>}
+            </h1>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-slate-500">
+                Select products to generate a selection document
+              </p>
+              {lastSaved && (
+                <span className="text-xs text-green-600">
+                  • Saved {lastSaved.toLocaleTimeString()}
+                </span>
+              )}
+              {saving && (
+                <span className="text-xs text-amber-600">• Saving...</span>
+              )}
+            </div>
           </div>
-          <a
-            href="/admin"
-            className="px-4 py-2 text-sm border border-slate-300 rounded hover:bg-white"
-          >
-            Back to Admin
-          </a>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => saveSelection(true)}
+              disabled={saving || !address.trim()}
+              className="px-4 py-2 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? "Saving..." : "💾 Save"}
+            </button>
+            <a
+              href="/admin/saved-selections"
+              className="px-4 py-2 text-sm border border-slate-300 rounded hover:bg-white transition-colors"
+            >
+              View Saved
+            </a>
+            <a
+              href="/admin"
+              className="px-4 py-2 text-sm border border-slate-300 rounded hover:bg-white transition-colors"
+            >
+              Back to Admin
+            </a>
+          </div>
         </div>
+
+        {/* Loading Selection Overlay */}
+        {loadingSelection && (
+          <div className="bg-blue-100 border border-blue-300 text-blue-800 rounded-lg px-4 py-3 text-sm">
+            Loading saved selection...
+          </div>
+        )}
 
         {/* Message */}
         {message && (

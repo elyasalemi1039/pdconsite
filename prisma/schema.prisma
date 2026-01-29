@@ -47,4 +47,19 @@ model Area {
   products  Product[]
 }
 
+model SavedSelection {
+  id           String   @id @default(uuid())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  name         String   // Display name for the selection
+  address      String
+  date         String
+  contactName  String?
+  company      String?
+  phoneNumber  String?
+  email        String?
+  products     Json     // Array of selected products with quantities and notes
+  status       String   @default("draft") // draft, completed
+}
+
 
