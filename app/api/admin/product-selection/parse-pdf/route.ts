@@ -87,6 +87,77 @@ function extractProductCodes(text: string): string[] {
   return Array.from(codes);
 }
 
+/**
+ * Find fuzzy matches for a code in the product list
+ * Returns products where the code contains the search term or vice versa
+ */
+function findFuzzyMatches(
+  searchCode: string,
+  allProducts: Array<{ id: string; code: string; description: string; [key: string]: any }>
+): Array<{ id: string; code: string; description: string; matchType: string; [key: string]: any }> {
+  const normalizedSearch = searchCode.toUpperCase().replace(/[\s\-_.]/g, "");
+  const searchParts = searchCode.toUpperCase().split(/[\s\-_.]+/).filter(Boolean);
+  
+  const matches: Array<{ product: any; score: number; matchType: string }> = [];
+  
+  for (const product of allProducts) {
+    const normalizedCode = product.code.toUpperCase().replace(/[\s\-_.]/g, "");
+    const codeParts = product.code.toUpperCase().split(/[\s\-_.]+/).filter(Boolean);
+    
+    let score = 0;
+    let matchType = "";
+    
+    // Exact match (already handled, but include for completeness)
+    if (normalizedCode === normalizedSearch) {
+      score = 100;
+      matchType = "exact";
+    }
+    // Search code is contained in product code
+    else if (normalizedCode.includes(normalizedSearch)) {
+      score = 80;
+      matchType = "contains";
+    }
+    // Product code is contained in search code
+    else if (normalizedSearch.includes(normalizedCode)) {
+      score = 70;
+      matchType = "partial";
+    }
+    // Any part of the search matches any part of the code
+    else {
+      for (const searchPart of searchParts) {
+        if (searchPart.length >= 3) {
+          for (const codePart of codeParts) {
+            if (codePart.includes(searchPart)) {
+              score = Math.max(score, 50);
+              matchType = "part-match";
+            } else if (searchPart.includes(codePart) && codePart.length >= 3) {
+              score = Math.max(score, 40);
+              matchType = "part-match";
+            }
+          }
+          // Also check if part appears anywhere in the full code
+          if (normalizedCode.includes(searchPart)) {
+            score = Math.max(score, 45);
+            matchType = "substring";
+          }
+        }
+      }
+    }
+    
+    if (score > 0) {
+      matches.push({ product, score, matchType });
+    }
+  }
+  
+  // Sort by score descending and take top matches
+  matches.sort((a, b) => b.score - a.score);
+  
+  return matches.slice(0, 5).map((m) => ({
+    ...m.product,
+    matchType: m.matchType,
+  }));
+}
+
 export async function POST(req: Request) {
   const session = await getSessionFromCookies();
   if (!session) {
@@ -121,33 +192,52 @@ export async function POST(req: Request) {
         success: true,
         products: [],
         extractedCodes: [],
+        suggestedMatches: {},
         message: "No product codes found in PDF",
       });
     }
 
-    // Look up matching products in the database
-    // Codes in DB are stored as "CATEGORY CODE" e.g., "O2 HAMPSHIRE"
-    const matchingProducts = await prisma.product.findMany({
-      where: {
-        OR: extractedCodes.map((code) => ({
-          code: {
-            equals: code,
-            mode: "insensitive" as const,
-          },
-        })),
-      },
-      include: {
-        area: true,
-      },
+    // Get ALL products from database for fuzzy matching
+    const allProducts = await prisma.product.findMany({
+      include: { area: true },
     });
 
-    // Track which codes were found
-    const foundCodes = new Set(matchingProducts.map((p) => p.code.toUpperCase()));
-    const notFoundCodes = extractedCodes.filter((c) => !foundCodes.has(c.toUpperCase()));
+    // First try exact matches (case-insensitive)
+    const exactMatches: typeof allProducts = [];
+    const notFoundCodes: string[] = [];
+    const suggestedMatches: Record<string, Array<{ id: string; code: string; description: string; matchType: string }>> = {};
+
+    for (const code of extractedCodes) {
+      const exactMatch = allProducts.find(
+        (p) => p.code.toUpperCase() === code.toUpperCase()
+      );
+      
+      if (exactMatch) {
+        // Avoid duplicates
+        if (!exactMatches.some((m) => m.id === exactMatch.id)) {
+          exactMatches.push(exactMatch);
+        }
+      } else {
+        notFoundCodes.push(code);
+        
+        // Find fuzzy matches for this code
+        const fuzzyMatches = findFuzzyMatches(code, allProducts);
+        if (fuzzyMatches.length > 0) {
+          suggestedMatches[code] = fuzzyMatches.map((m) => ({
+            id: m.id,
+            code: m.code,
+            description: m.description,
+            matchType: m.matchType,
+          }));
+        }
+      }
+    }
+
+    const foundCodes = exactMatches.map((p) => p.code);
 
     return NextResponse.json({
       success: true,
-      products: matchingProducts.map((p) => ({
+      products: exactMatches.map((p) => ({
         id: p.id,
         code: p.code,
         description: p.description,
@@ -159,8 +249,9 @@ export async function POST(req: Request) {
         area: p.area,
       })),
       extractedCodes,
-      foundCodes: Array.from(foundCodes),
+      foundCodes,
       notFoundCodes,
+      suggestedMatches,
       pageCount: pdfData.numpages,
     });
   } catch (error: unknown) {

@@ -51,6 +51,7 @@ export default function ProductSheetApp() {
   const [pdfParseInfo, setPdfParseInfo] = useState<{
     found: number;
     notFound: string[];
+    suggestedMatches: Record<string, Array<{ id: string; code: string; description: string; matchType: string }>>;
   } | null>(null);
 
   // Search and filter state
@@ -215,11 +216,19 @@ export default function ProductSheetApp() {
           return;
         }
 
+        // Store parse info including suggested matches
+        setPdfParseInfo({
+          found: data.products?.length || 0,
+          notFound: data.notFoundCodes || [],
+          suggestedMatches: data.suggestedMatches || {},
+        });
+
         if (!data.products || data.products.length === 0) {
+          const hasSuggestions = Object.keys(data.suggestedMatches || {}).length > 0;
           setMessage({
-            type: "info",
+            type: hasSuggestions ? "info" : "error",
             text: data.notFoundCodes?.length
-              ? `No matching products found. Codes in PDF: ${data.extractedCodes?.join(", ") || "none"}`
+              ? `No exact matches found. Codes in PDF: ${data.extractedCodes?.join(", ") || "none"}${hasSuggestions ? ". See suggestions below." : ""}`
               : "No product codes found in the PDF.",
           });
           return;
@@ -230,15 +239,11 @@ export default function ProductSheetApp() {
           addProductToSelected(product);
         }
 
-        setPdfParseInfo({
-          found: data.products.length,
-          notFound: data.notFoundCodes || [],
-        });
-
+        const hasSuggestions = Object.keys(data.suggestedMatches || {}).length > 0;
         setMessage({
           type: "success",
           text: `Added ${data.products.length} products from PDF${
-            data.notFoundCodes?.length ? `. ${data.notFoundCodes.length} codes not found.` : ""
+            data.notFoundCodes?.length ? `. ${data.notFoundCodes.length} codes not found${hasSuggestions ? " (see suggestions below)" : ""}.` : ""
           }`,
         });
       } catch (err) {
@@ -481,9 +486,40 @@ export default function ProductSheetApp() {
           </div>
 
           {pdfParseInfo && pdfParseInfo.notFound.length > 0 && (
-            <div className="mt-4 px-4 py-3 rounded-lg bg-amber-50 border border-amber-200">
-              <p className="text-sm font-medium text-amber-700 mb-1">Codes not found in database:</p>
-              <p className="text-xs text-amber-600">{pdfParseInfo.notFound.join(", ")}</p>
+            <div className="mt-4 space-y-3">
+              {pdfParseInfo.notFound.map((code) => {
+                const suggestions = pdfParseInfo.suggestedMatches[code] || [];
+                return (
+                  <div key={code} className="px-4 py-3 rounded-lg bg-amber-50 border border-amber-200">
+                    <p className="text-sm font-medium text-amber-700 mb-2">
+                      Code not found: <span className="font-bold">{code}</span>
+                    </p>
+                    {suggestions.length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-xs text-amber-600">Did you mean:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {suggestions.map((suggestion) => (
+                            <button
+                              key={suggestion.id}
+                              onClick={() => {
+                                const product = allProducts.find((p) => p.id === suggestion.id);
+                                if (product) addProductToSelected(product);
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-amber-300 rounded text-xs hover:bg-amber-100 transition-colors"
+                            >
+                              <span className="font-medium text-amber-800">{suggestion.code}</span>
+                              <span className="text-amber-600">({suggestion.matchType})</span>
+                              <span className="text-green-600 font-bold">+</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-amber-600">No similar products found</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
