@@ -53,6 +53,11 @@ export default function ProductSheetApp() {
     notFound: string[];
   } | null>(null);
 
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedAreaFilter, setSelectedAreaFilter] = useState<string>("all");
+  const [selectedBrandFilter, setSelectedBrandFilter] = useState<string>("all");
+
   // Load all products on mount
   useEffect(() => {
     const loadAllProducts = async () => {
@@ -68,10 +73,10 @@ export default function ProductSheetApp() {
         const data = await resp.json();
         setAllProducts(data.products || []);
       } catch (err) {
-        setMessage({
-          type: "error",
-          text: err instanceof Error ? err.message : "Failed to fetch products",
-        });
+          setMessage({
+            type: "error",
+            text: err instanceof Error ? err.message : "Failed to fetch products",
+          });
       } finally {
         setLoadingProducts(false);
       }
@@ -79,16 +84,63 @@ export default function ProductSheetApp() {
     loadAllProducts();
   }, []);
 
-  // Group products by area
+  // Get unique area names for filter
+  const areaNames = useMemo(() => {
+    const areas = new Set<string>();
+    allProducts.forEach((p) => areas.add(p.area?.name || "Other"));
+    return Array.from(areas).sort();
+  }, [allProducts]);
+
+  // Get unique brand names for filter
+  const brandNames = useMemo(() => {
+    const brands = new Set<string>();
+    allProducts.forEach((p) => {
+      if (p.brand) brands.add(p.brand);
+    });
+    return Array.from(brands).sort();
+  }, [allProducts]);
+
+  // Filter and search products
+  const filteredProducts = useMemo(() => {
+    let products = allProducts;
+
+    // Apply area filter
+    if (selectedAreaFilter !== "all") {
+      products = products.filter((p) => (p.area?.name || "Other") === selectedAreaFilter);
+    }
+
+    // Apply brand filter
+    if (selectedBrandFilter !== "all") {
+      products = products.filter((p) => p.brand === selectedBrandFilter);
+    }
+
+    // Apply search across ALL fields
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      products = products.filter((p) => {
+        const codeMatch = p.code.toLowerCase().includes(q);
+        const descMatch = p.description.toLowerCase().includes(q);
+        const brandMatch = p.brand?.toLowerCase().includes(q) || false;
+        const keywordsMatch = p.keywords?.toLowerCase().includes(q) || false;
+        const detailsMatch = p.productDetails?.toLowerCase().includes(q) || false;
+        const areaMatch = p.area?.name.toLowerCase().includes(q) || false;
+        return codeMatch || descMatch || brandMatch || keywordsMatch || detailsMatch || areaMatch;
+      });
+    }
+
+    return products;
+  }, [allProducts, searchQuery, selectedAreaFilter, selectedBrandFilter]);
+
+  // Group filtered products by area
   const productsByArea = useMemo(() => {
-    return allProducts.reduce<Record<string, ApiProduct[]>>((acc, p) => {
+    return filteredProducts.reduce<Record<string, ApiProduct[]>>((acc, p) => {
       const key = p.area?.name || "Other";
       acc[key] = acc[key] ? [...acc[key], p] : [p];
       return acc;
     }, {});
-  }, [allProducts]);
+  }, [filteredProducts]);
 
-  const areaNames = useMemo(() => Object.keys(productsByArea).sort(), [productsByArea]);
+  const filteredAreaNames = useMemo(() => Object.keys(productsByArea).sort(), [productsByArea]);
 
   const toggleArea = (areaName: string) => {
     setExpandedAreas((prev) => {
@@ -235,6 +287,12 @@ export default function ProductSheetApp() {
     [handlePdfUpload]
   );
 
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedAreaFilter("all");
+    setSelectedBrandFilter("all");
+  };
+
   const validate = () => {
     if (!address.trim()) return "Address is required";
     if (selected.length === 0) return "Select at least one product";
@@ -321,6 +379,8 @@ export default function ProductSheetApp() {
       setGenerating(false);
     }
   };
+
+  const hasActiveFilters = searchQuery.trim() || selectedAreaFilter !== "all" || selectedBrandFilter !== "all";
 
   return (
     <main className="min-h-screen bg-[#2A2F38] py-8 px-4">
@@ -497,20 +557,108 @@ export default function ProductSheetApp() {
           </div>
         </div>
 
+        {/* Search and Filters */}
+        <div className="bg-[#36454f] rounded-xl border border-slate-600 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">🔍 Search & Filter Products</h2>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="text-sm text-[#00f0ff] hover:underline"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Search Input */}
+            <div className="md:col-span-3">
+              <label className="block text-sm font-medium text-slate-300 mb-1">
+                Search (code, description, brand, keywords, details)
+              </label>
+              <div className="relative">
+            <input
+              type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Type to search across all product fields..."
+                  className="w-full rounded-lg border border-slate-500 bg-slate-700 px-3 py-2 pl-10 text-white placeholder-slate-400 focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none"
+                />
+                <svg
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* Area Filter */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Filter by Area</label>
+              <select
+                value={selectedAreaFilter}
+                onChange={(e) => setSelectedAreaFilter(e.target.value)}
+                className="w-full rounded-lg border border-slate-500 bg-slate-700 px-3 py-2 text-white focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none"
+              >
+                <option value="all">All Areas</option>
+                {areaNames.map((area) => (
+                  <option key={area} value={area}>
+                    {area}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Brand Filter */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1">Filter by Brand</label>
+              <select
+                value={selectedBrandFilter}
+                onChange={(e) => setSelectedBrandFilter(e.target.value)}
+                className="w-full rounded-lg border border-slate-500 bg-slate-700 px-3 py-2 text-white focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none"
+              >
+                <option value="all">All Brands</option>
+                {brandNames.map((brand) => (
+                  <option key={brand} value={brand}>
+                    {brand}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Results Count */}
+            <div className="flex items-end">
+              <span className="text-sm text-slate-400">
+                Showing {filteredProducts.length} of {allProducts.length} products
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Area Dropdowns */}
         <div className="bg-[#36454f] rounded-xl border border-slate-600 p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-white">📦 Select Products by Area</h2>
-            <span className="text-sm text-slate-400">{allProducts.length} products available</span>
           </div>
 
           {loadingProducts ? (
             <div className="text-center py-8 text-slate-400">Loading products...</div>
-          ) : areaNames.length === 0 ? (
-            <div className="text-center py-8 text-slate-400">No products found</div>
+          ) : filteredAreaNames.length === 0 ? (
+            <div className="text-center py-8 text-slate-400">
+              {hasActiveFilters ? "No products match your filters" : "No products found"}
+            </div>
           ) : (
             <div className="space-y-3">
-              {areaNames.map((areaName) => {
+              {filteredAreaNames.map((areaName) => {
                 const isExpanded = expandedAreas.has(areaName);
                 const areaProducts = productsByArea[areaName] || [];
                 const selectedInArea = areaProducts.filter((p) =>
@@ -549,10 +697,10 @@ export default function ProductSheetApp() {
                     {isExpanded && (
                       <div className="bg-slate-800 p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {areaProducts.map((product) => {
-                          const isSelected = selected.some((s) => s.id === product.id);
-                          return (
-                            <div
-                              key={product.id}
+                  const isSelected = selected.some((s) => s.id === product.id);
+                  return (
+                    <div
+                      key={product.id}
                               className={`rounded-lg border-2 overflow-hidden transition-all ${
                                 isSelected
                                   ? "border-[#00f0ff] bg-[#00f0ff]/10"
@@ -586,12 +734,12 @@ export default function ProductSheetApp() {
                               <div className="p-3">
                                 <div className="flex items-start justify-between gap-2 mb-2">
                                   <span className="bg-slate-600 text-white text-xs font-bold px-2 py-1 rounded">
-                                    {product.code}
+                          {product.code}
                                   </span>
                                   {product.brand && (
                                     <span className="text-xs text-slate-400">{product.brand}</span>
                                   )}
-                                </div>
+                        </div>
                                 <p className="text-sm text-white mb-2 line-clamp-2">{product.description}</p>
                                 {product.productDetails && (
                                   <p className="text-xs text-slate-400 mb-3 line-clamp-2">
@@ -610,16 +758,16 @@ export default function ProductSheetApp() {
                                 >
                                   {isSelected ? "Remove" : "Add to Selection"}
                                 </button>
-                              </div>
+                        </div>
                             </div>
                           );
                         })}
                       </div>
                     )}
-                  </div>
-                );
-              })}
-            </div>
+                    </div>
+                  );
+                })}
+              </div>
           )}
         </div>
 
@@ -656,12 +804,12 @@ export default function ProductSheetApp() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="bg-slate-600 text-white text-xs font-bold px-2 py-1 rounded">
-                          {item.code}
+                    {item.code}
                         </span>
                         <span className="text-xs text-slate-400">{item.areaName}</span>
                       </div>
                       <p className="text-sm text-white truncate">{item.description}</p>
-                    </div>
+                  </div>
 
                     {/* Remove Button */}
                     <button
@@ -678,11 +826,11 @@ export default function ProductSheetApp() {
                   <div className="mt-3 grid grid-cols-[100px_1fr] gap-3">
                     <div>
                       <label className="block text-xs text-slate-400 mb-1">Quantity</label>
-                      <input
+                  <input
                         type="text"
-                        placeholder="Qty"
-                        value={item.quantity}
-                        onChange={(e) => updateSelected(item.id, "quantity", e.target.value)}
+                    placeholder="Qty"
+                    value={item.quantity}
+                    onChange={(e) => updateSelected(item.id, "quantity", e.target.value)}
                         className="w-full rounded-lg border border-slate-500 bg-slate-600 px-3 py-2 text-white text-sm placeholder-slate-400 focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none"
                       />
                     </div>
@@ -690,8 +838,8 @@ export default function ProductSheetApp() {
                       <label className="block text-xs text-slate-400 mb-1">Notes</label>
                       <textarea
                         placeholder="Additional notes..."
-                        value={item.notes}
-                        onChange={(e) => updateSelected(item.id, "notes", e.target.value)}
+                    value={item.notes}
+                    onChange={(e) => updateSelected(item.id, "notes", e.target.value)}
                         rows={2}
                         className="w-full rounded-lg border border-slate-500 bg-slate-600 px-3 py-2 text-white text-sm placeholder-slate-400 focus:border-[#00f0ff] focus:ring-1 focus:ring-[#00f0ff] outline-none resize-none"
                       />

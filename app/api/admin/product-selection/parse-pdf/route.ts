@@ -122,10 +122,11 @@ export async function POST(req: Request) {
         id: p.id,
         code: p.code,
         description: p.description,
-        manufacturerDescription: p.manufacturerDescription,
         productDetails: p.productDetails,
-        price: p.price,
         imageUrl: p.imageUrl,
+        link: p.link,
+        brand: p.brand,
+        keywords: p.keywords,
         area: p.area,
       })),
       extractedCodes,
@@ -139,4 +140,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-
