@@ -8,107 +8,105 @@ export const dynamic = "force-dynamic";
 
 /**
  * Parse PDF to extract BWA product codes
- * Same logic as BWA import page:
- * - Codes start with "BWA" followed by the actual code
- * - Strip "BWA " prefix to get the database code
  * 
- * Examples from PDF:
- * - BWA E1 SH G004 → stored as "E1 SH G004"
- * - BWA E1 SH RS300 → stored as "E1 SH RS300"
- * - BWA J1 JTV08PBB → stored as "J1 JTV08PBB"
- * - BWA A8 CWH66-1500DWM → stored as "A8 CWH66-1500DWM"
+ * Code format: BWA [CATEGORY] [CODE_PARTS...]
+ * 
+ * Database codes (after BWA stripped):
+ * - O2 HAMPSHIRE 1800
+ * - O3 HAMPSHIRE 1200  
+ * - A8 CWH66-1500DWM
+ * - J1 JTV08PBB
+ * - E1 SH G004
+ * - E1 SH RS300
+ * - Z1 JAVA-3178SBG
+ * - C1 MWBT-5-1700
  */
 function extractProductCodes(text: string): string[] {
   const codes = new Set<string>();
   
-  // First, normalize the text by joining lines that are split codes
-  // Codes ending with a hyphen continue on the next line
-  const lines = text.split(/\n/);
-  const normalizedLines: string[] = [];
+  // Split into lines and clean up
+  const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
   
   for (let i = 0; i < lines.length; i++) {
-    let line = lines[i].trim();
+    const line = lines[i];
     
-    // If line ends with hyphen and next line looks like a continuation
-    while (line.endsWith("-") && i + 1 < lines.length) {
+    // Check if line starts with BWA
+    if (!/^BWA\s+/i.test(line)) continue;
+    
+    // Remove BWA prefix
+    let remaining = line.replace(/^BWA\s+/i, "").trim();
+    
+    // The code starts with category: letter + digit(s) like O2, A8, J1, E1, Z1, C1
+    const categoryMatch = remaining.match(/^([A-Z]\d+)\s+(.+)/i);
+    if (!categoryMatch) continue;
+    
+    const category = categoryMatch[1].toUpperCase();
+    let codePart = categoryMatch[2].trim();
+    
+    // If codePart ends with a hyphen, it continues on next line
+    if (codePart.endsWith("-") && i + 1 < lines.length) {
       const nextLine = lines[i + 1].trim();
-      // Check if next line starts with alphanumeric (code continuation)
-      if (/^[A-Z0-9]/.test(nextLine)) {
-        line = line + nextLine;
-        i++;
+      // Take only the first alphanumeric "word"
+      const contMatch = nextLine.match(/^([A-Z0-9][A-Z0-9]*)/i);
+      if (contMatch) {
+        codePart += contMatch[1];
+        i++; // Skip the next line since we consumed it
+      }
+    }
+    
+    // Now extract the actual product code from codePart
+    // The code is the first continuous section of alphanumeric/dash/dot/space characters
+    // It ends at description text
+    
+    // Known product name patterns that ARE part of codes:
+    // HAMPSHIRE, CWH66, JTV08PBB, SH, G004, RS300, JAVA, MWBT, etc.
+    
+    // Words that indicate END of code (these are descriptions):
+    const stopWords = [
+      "VANITY", "TOILET", "BATH", "BASIN", "MIXER", "SPOUT", 
+      "SHOWER", "DROPPER", "FILLER", "WASTE", "PLUG", "BUTTON", 
+      "HOLDER", "CISTERN", "MATT", "SATIN", "WHITE", "GOLD", 
+      "BRASS", "CHROME", "BLACK", "ROUND", "SQUARE", "CEILING", 
+      "WALL", "FLOOR", "STANDING", "OPTIONS", "AVAILABLE", 
+      "COLOURS", "HANDLE", "STONE", "TOP", "DIMENSION", "TBC", 
+      "PAGE", "QTY", "UNIT", "PRICE", "PRODUCT", "NAME", "PICTURE",
+      "BRUSHED", "VENEZIA", "DOCCIA", "OVERHEAD", "RAIN", "COMPLETE", 
+      "KIT", "SWIVEL", "HAND", "BRACKET", "ARM", "FREESTANDING", 
+      "OVERFLOW", "POP", "DOWN", "INCL", "CONNECTOR", "SUIT", 
+      "DOUBLE", "BOWL", "HUNG", "CURVE", "HANDLES", "BUTTONS",
+      "WITH", "AND", "THE", "FOR", "IN", "TO", "MM", "NO"
+    ];
+    
+    // Split by whitespace and collect code parts
+    const words = codePart.split(/\s+/);
+    const codeWords: string[] = [];
+    
+    for (const word of words) {
+      const upperWord = word.toUpperCase();
+      
+      // If it's a stop word, we're done
+      if (stopWords.includes(upperWord)) {
+        break;
+      }
+      
+      // If it looks like a code part (alphanumeric with optional dashes/dots)
+      if (/^[A-Z0-9][A-Z0-9\-_.]*$/i.test(word)) {
+        codeWords.push(upperWord);
+        
+        // If this word is purely numeric (dimension like 1800, 1200, 900)
+        // it's usually the last part of the code
+        if (/^\d{3,4}$/.test(word)) {
+          break;
+        }
       } else {
+        // Not a valid code character, stop
         break;
       }
     }
     
-    normalizedLines.push(line);
-  }
-  
-  const normalizedText = normalizedLines.join("\n");
-  
-  // Pattern: Match lines starting with "BWA " followed by the code
-  // The code continues until we hit a line that looks like a product name/description
-  // or a price, or end of relevant content
-  
-  // Find all occurrences of "BWA " followed by code pattern
-  // Code pattern: starts with letter+digit (category), then rest of code
-  const bwaPattern = /\bBWA\s+([A-Z]\d+(?:\s+[A-Z0-9][A-Z0-9\-_.]*)+)/gi;
-  
-  let match;
-  while ((match = bwaPattern.exec(normalizedText)) !== null) {
-    let code = match[1].trim().toUpperCase();
-    
-    // Clean up the code - remove any trailing numbers that might be quantities
-    // or prices that got attached
-    code = code.replace(/\s+\$.*$/, ""); // Remove price
-    code = code.replace(/\s+\d{4,}$/, ""); // Remove 4+ digit numbers (like years or large quantities)
-    
-    if (code.length >= 3) {
-      codes.add(code);
-    }
-  }
-  
-  // Also try a more permissive pattern for codes that might not follow the strict format
-  const altPattern = /\bBWA\s+([A-Z]\d+\s+[^\n$]+?)(?=\s*(?:\$|VANITY|TOILET|BATH|BASIN|TAP|SHOWER|DOCCIA|VENEZIA|HAMPSHIRE|PLATEAU|STELLA|SANDRA|JAVA|JESS|SQUARE|\d{4}mm|\d+\s*$))/gi;
-  
-  while ((match = altPattern.exec(normalizedText)) !== null) {
-    let code = match[1].trim().toUpperCase();
-    code = code.replace(/\s+\$.*$/, "");
-    code = code.replace(/\s+\d{4,}$/, "");
-    
-    if (code.length >= 3) {
-      codes.add(code);
-    }
-  }
-  
-  // Parse line by line looking for BWA codes
-  for (const line of normalizedLines) {
-    const trimmedLine = line.trim();
-    
-    // Check if line starts with "BWA "
-    if (/^BWA\s+/i.test(trimmedLine)) {
-      // Extract everything after "BWA " that looks like a code
-      let code = trimmedLine.replace(/^BWA\s+/i, "").trim();
-      
-      // The code typically ends before description words or dimensions
-      // Look for patterns like "HAMPSHIRE 1800" where 1800 is a dimension, not part of code
-      // But "CWH66-1500DWM" is a full code
-      
-      // If it ends with just a number (dimension like 1800, 1200), that's not part of code
-      const dimensionMatch = code.match(/^(.+?)\s+(\d{3,4})$/);
-      if (dimensionMatch && !dimensionMatch[1].includes("-")) {
-        // The number is likely a dimension, not part of code
-        code = dimensionMatch[1];
-      }
-      
-      // Remove any trailing text that looks like a description
-      code = code.split(/\s+(?:VANITY|TOILET|BATH|BASIN|MIXER|SPOUT|SHOWER|HEAD|DROPPER|FILLER|WASTE|PLUG|BUTTON|HOLDER|CISTERN|MATT|SATIN|WHITE|GOLD|BRASS|CHROME|BLACK)/i)[0];
-      
-      code = code.trim().toUpperCase();
-      
-      if (code.length >= 3 && /^[A-Z]\d+/.test(code)) {
-        codes.add(code);
-      }
+    if (codeWords.length > 0) {
+      const fullCode = `${category} ${codeWords.join(" ")}`;
+      codes.add(fullCode);
     }
   }
   
@@ -151,7 +149,6 @@ function findFuzzyMatches(
     }
     // Check if significant parts match
     else {
-      // Count matching parts
       let matchingParts = 0;
       for (const searchPart of searchParts) {
         if (searchPart.length >= 2) {
@@ -168,14 +165,6 @@ function findFuzzyMatches(
       if (matchingParts >= 2) {
         score = 30 + matchingParts * 10;
         matchType = "parts";
-      }
-      
-      // Also check substring anywhere
-      for (const searchPart of searchParts) {
-        if (searchPart.length >= 3 && normalizedCode.includes(searchPart)) {
-          score = Math.max(score, 40);
-          matchType = matchType || "substring";
-        }
       }
     }
     
@@ -227,7 +216,6 @@ export async function POST(req: Request) {
         extractedCodes: [],
         suggestedMatches: {},
         message: "No product codes found in PDF",
-        debug: extractedText.substring(0, 3000),
       });
     }
 
@@ -242,7 +230,7 @@ export async function POST(req: Request) {
     const suggestedMatches: Record<string, Array<{ id: string; code: string; description: string; matchType: string }>> = {};
 
     for (const code of extractedCodes) {
-      // Normalize both for comparison
+      // Normalize for comparison
       const normalizedExtracted = code.toUpperCase().replace(/[\s\-_.]/g, "");
       
       const exactMatch = allProducts.find((p) => {
