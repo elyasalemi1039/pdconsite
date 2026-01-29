@@ -10,26 +10,26 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q") ?? "";
+    const all = searchParams.get("all") === "true";
 
-    console.log("Product search query:", q);
+    // If all=true, return all products for client-side filtering
+    if (all) {
+      const products = await prisma.product.findMany({
+        orderBy: { createdAt: "desc" },
+        include: { area: true },
+      });
+      return NextResponse.json({ products });
+    }
 
+    // Search by code, brand, or keywords
     const where =
       q.trim().length === 0
         ? {}
         : {
             OR: [
               { code: { contains: q, mode: "insensitive" as const } },
-              { description: { contains: q, mode: "insensitive" as const } },
-              {
-                manufacturerDescription: {
-                  contains: q,
-                  mode: "insensitive" as const,
-                },
-              },
-              {
-                productDetails: { contains: q, mode: "insensitive" as const },
-              },
-              { area: { name: { contains: q, mode: "insensitive" as const } } },
+              { brand: { contains: q, mode: "insensitive" as const } },
+              { keywords: { contains: q, mode: "insensitive" as const } },
             ],
           };
 
@@ -39,14 +39,13 @@ export async function GET(request: Request) {
       take: 50,
       include: { area: true },
     });
-
-    console.log("Found products:", products.length);
-
+    
     return NextResponse.json({ products });
   } catch (error) {
     console.error("Error fetching products:", error);
     const errorMessage =
       error instanceof Error ? `${error.message}` : "Unknown error";
+    
     return NextResponse.json(
       { error: "Failed to fetch products", details: errorMessage, products: [] },
       { status: 500 }
@@ -61,10 +60,10 @@ export async function POST(request: Request) {
     const code = formData.get("code")?.toString() || "";
     const areaId = formData.get("areaId")?.toString() || "";
     const description = formData.get("description")?.toString() || "";
-    const manufacturerDescription =
-      formData.get("manufacturerDescription")?.toString() || "";
     const productDetails = formData.get("productDetails")?.toString() || "";
-    const priceRaw = formData.get("price")?.toString() || "";
+    const link = formData.get("link")?.toString() || "";
+    const brand = formData.get("brand")?.toString() || "";
+    const keywords = formData.get("keywords")?.toString() || "";
     const image = formData.get("image") as File | null;
 
     if (!code.trim()) {
@@ -90,33 +89,31 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!image) {
-      return NextResponse.json(
-        { error: "Image is required." },
-        { status: 400 }
-      );
+    let imageUrl = "/no-image.png"; // Default placeholder
+
+    if (image && image.size > 0) {
+      const buffer = Buffer.from(await image.arrayBuffer());
+      const key = `products/${code}-${Date.now()}-${image.name || "image"}`;
+
+      await uploadToR2({
+        key,
+        body: buffer,
+        contentType: image.type || "application/octet-stream",
+      });
+
+      imageUrl = getPublicUrl(key);
     }
-
-    const buffer = Buffer.from(await image.arrayBuffer());
-    const key = `products/${code}-${Date.now()}-${image.name || "image"}`;
-
-    await uploadToR2({
-      key,
-      body: buffer,
-      contentType: image.type || "application/octet-stream",
-    });
-
-    const price = priceRaw ? Number(priceRaw) : null;
 
     const product = await prisma.product.create({
       data: {
         code,
         areaId: area.id,
         description,
-        manufacturerDescription: manufacturerDescription || null,
         productDetails: productDetails || null,
-        price: price !== null && !Number.isNaN(price) ? price : null,
-        imageUrl: getPublicUrl(key),
+        imageUrl,
+        link: link || null,
+        brand: brand || null,
+        keywords: keywords || null,
       },
       include: { area: true },
     });

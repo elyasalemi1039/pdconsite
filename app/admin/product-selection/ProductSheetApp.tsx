@@ -1,16 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type ApiProduct = {
   id: string;
   code: string;
   description: string;
-  manufacturerDescription: string | null;
   productDetails: string | null;
-  price: number | null;
   imageUrl: string;
   area: { id: string; name: string };
+  link: string | null;
+  brand: string | null;
+  keywords: string | null;
 };
 
 type SelectedProduct = {
@@ -18,24 +19,21 @@ type SelectedProduct = {
   code: string;
   areaName: string;
   description: string;
-  manufacturerDescription: string | null;
   productDetails: string | null;
-  price: number | null;
   imageUrl: string;
   quantity: string;
   notes: string;
+  link: string | null;
 };
 
-type Message = { type: "success" | "error" | "info"; text: string };
+type Message = { type: "success" | "error"; text: string };
 
 const API_BASE = "/api/admin/product-selection";
 
 export default function ProductSheetApp() {
   const [message, setMessage] = useState<Message | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [loadingProducts, setLoadingProducts] = useState(false);
-  const [parsingPdf, setParsingPdf] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   const [address, setAddress] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
@@ -45,91 +43,86 @@ export default function ProductSheetApp() {
   const [email, setEmail] = useState("");
 
   const [search, setSearch] = useState("");
-  const [products, setProducts] = useState<ApiProduct[]>([]);
+  const [allProducts, setAllProducts] = useState<ApiProduct[]>([]);
   const [selected, setSelected] = useState<SelectedProduct[]>([]);
-  const [pdfParseInfo, setPdfParseInfo] = useState<{
-    found: number;
-    notFound: string[];
-  } | null>(null);
+  const [downloadAsWord, setDownloadAsWord] = useState(false);
 
-  const productsByArea = useMemo(() => {
-    return products.reduce<Record<string, ApiProduct[]>>((acc, p) => {
-      acc[p.area] = acc[p.area] ? [...acc[p.area], p] : [p];
-      return acc;
-    }, {});
-  }, [products]);
-
+  // Load all products on mount
   useEffect(() => {
-    const controller = new AbortController();
-    const fetchProducts = async () => {
-      setLoadingProducts(true);
-      try {
-        if (search.trim().length < 2) {
-          setProducts([]);
-          return;
-        }
-        const resp = await fetch(
-          `/api/admin/products${search ? `?q=${encodeURIComponent(search)}` : ""}`,
-          { signal: controller.signal }
+    const loadAllProducts = async () => {
+    setLoadingProducts(true);
+    try {
+        const resp = await fetch("/api/admin/products?all=true");
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(
+          errBody?.error ||
+            errBody?.details ||
+            `Failed to fetch products (${resp.status})`
         );
-        if (!resp.ok) {
-          const errBody = await resp.json().catch(() => ({}));
-          throw new Error(
-            errBody?.error ||
-              errBody?.details ||
-              `Failed to fetch products (${resp.status})`
-          );
-        }
-        const data = await resp.json();
-        setProducts(data.products || []);
-      } catch (err) {
-        if (!(err instanceof DOMException && err.name === "AbortError")) {
-          setMessage({
-            type: "error",
-            text: err instanceof Error ? err.message : "Failed to fetch products",
-          });
-        }
-      } finally {
-        setLoadingProducts(false);
       }
-    };
-    fetchProducts();
-    return () => controller.abort();
-  }, [search]);
-
-  const addProductToSelected = useCallback((p: ApiProduct) => {
-    setSelected((prev) => {
-      const exists = prev.find((s) => s.id === p.id);
-      if (exists) return prev;
-      return [
-        ...prev,
-        {
-          ...p,
-          areaName: p.area?.name || "Other",
-          quantity: "",
-          notes: "",
-        },
-      ];
-    });
+      const data = await resp.json();
+        setAllProducts(data.products || []);
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to fetch products",
+      });
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+    loadAllProducts();
   }, []);
 
-  const toggleSelect = (p: ApiProduct) => {
+  // Instant client-side filtering - show all if no search
+  const filteredProducts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return allProducts; // Show all products when no search
+    return allProducts.filter((p) => {
+      const codeMatch = p.code.toLowerCase().includes(q);
+      const descMatch = p.description.toLowerCase().includes(q);
+      const brandMatch = p.brand?.toLowerCase().includes(q) || false;
+      const keywordsMatch = p.keywords?.toLowerCase().includes(q) || false;
+      return codeMatch || descMatch || brandMatch || keywordsMatch;
+    });
+  }, [allProducts, search]);
+
+  const productsByArea = useMemo(() => {
+    return filteredProducts.reduce<Record<string, ApiProduct[]>>((acc, p) => {
+      const key = p.area?.name || "Other";
+      acc[key] = acc[key] ? [...acc[key], p] : [p];
+      return acc;
+    }, {});
+  }, [filteredProducts]);
+
+  const toggleSelect = (p: ApiProduct | SelectedProduct) => {
+    const areaName =
+      "area" in p ? (p.area?.name || "Other") : p.areaName || "Other";
+    const id = p.id;
     setSelected((prev) => {
-      const exists = prev.find((s) => s.id === p.id);
+      const exists = prev.find((s) => s.id === id);
       if (exists) {
-        return prev.filter((s) => s.id !== p.id);
+        return prev.filter((s) => s.id !== id);
       }
+      const link = "link" in p ? p.link : null;
       return [
         ...prev,
         {
-          ...p,
-          areaName: p.area?.name || "Other",
+          id: p.id,
+          code: p.code,
+          description: p.description,
+          productDetails: p.productDetails,
+          imageUrl: p.imageUrl,
+          areaName,
           quantity: "",
           notes: "",
+          link,
         },
       ];
     });
   };
+
 
   const updateSelected = (
     id: string,
@@ -141,109 +134,6 @@ export default function ProductSheetApp() {
     );
   };
 
-  // PDF Upload Handler
-  const handlePdfUpload = useCallback(
-    async (file: File) => {
-      if (!file.type.includes("pdf") && !file.name.toLowerCase().endsWith(".pdf")) {
-        setMessage({ type: "error", text: "Please upload a PDF file" });
-        return;
-      }
-
-      setParsingPdf(true);
-      setMessage(null);
-      setPdfParseInfo(null);
-
-      try {
-        const formData = new FormData();
-        formData.append("pdf", file);
-
-        const res = await fetch(`${API_BASE}/parse-pdf`, {
-          method: "POST",
-          body: formData,
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          setMessage({ type: "error", text: data?.error || "Failed to parse PDF" });
-          return;
-        }
-
-        if (!data.products || data.products.length === 0) {
-          setMessage({
-            type: "info",
-            text: data.notFoundCodes?.length
-              ? `No matching products found. Codes in PDF: ${data.extractedCodes?.join(", ") || "none"}`
-              : "No product codes found in the PDF.",
-          });
-          return;
-        }
-
-        // Add matching products to selection
-        for (const product of data.products) {
-          addProductToSelected(product);
-        }
-
-        setPdfParseInfo({
-          found: data.products.length,
-          notFound: data.notFoundCodes || [],
-        });
-
-        setMessage({
-          type: "success",
-          text: `Added ${data.products.length} products from PDF${
-            data.notFoundCodes?.length
-              ? `. ${data.notFoundCodes.length} codes not found.`
-              : ""
-          }`,
-        });
-      } catch (err) {
-        console.error("PDF parse error:", err);
-        setMessage({ type: "error", text: "Failed to parse PDF" });
-      } finally {
-        setParsingPdf(false);
-      }
-    },
-    [addProductToSelected]
-  );
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
-
-      const files = e.dataTransfer.files;
-      if (files.length > 0) {
-        handlePdfUpload(files[0]);
-      }
-    },
-    [handlePdfUpload]
-  );
-
-  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  }, []);
-
-  const handleFileInput = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (files && files.length > 0) {
-        handlePdfUpload(files[0]);
-      }
-      e.target.value = "";
-    },
-    [handlePdfUpload]
-  );
-
   const validate = () => {
     if (!address.trim()) return "Address is required";
     if (selected.length === 0) return "Select at least one product";
@@ -251,19 +141,19 @@ export default function ProductSheetApp() {
   };
 
   const buildPayloadProducts = () =>
-    selected.map((p) => ({
+    selected.map((p) => {
+      return {
       category: p.areaName,
       code: p.code,
       description: p.description,
-      manufacturerDescription: p.manufacturerDescription,
       productDetails: p.productDetails,
-      areaDescription: p.areaName,
       quantity: p.quantity,
-      price: p.price?.toString() ?? "",
       notes: p.notes,
       image: null,
       imageUrl: p.imageUrl,
-    }));
+        link: p.link || "",
+      };
+    });
 
   const generateDocument = async () => {
     const error = validate();
@@ -277,6 +167,7 @@ export default function ProductSheetApp() {
 
     try {
       const payloadProducts = buildPayloadProducts();
+      const format = downloadAsWord ? "docx" : "pdf";
       const resp = await fetch(`${API_BASE}/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -289,6 +180,7 @@ export default function ProductSheetApp() {
           phoneNumber: phoneNumber.trim(),
           email: email.trim(),
           products: payloadProducts,
+          format,
         }),
       });
 
@@ -299,9 +191,23 @@ export default function ProductSheetApp() {
 
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
+      
+      // Generate filename: ProductSelection + first letter of each word + date (DDMMYYYY)
+      const addressInitials = address
+        .trim()
+        .split(/\s+/)
+        .map((word) => word.charAt(0).toUpperCase())
+        .filter((char) => /[A-Z]/.test(char))
+        .join("");
+      const dateObj = new Date(date);
+      const dd = String(dateObj.getDate()).padStart(2, "0");
+      const mm = String(dateObj.getMonth() + 1).padStart(2, "0");
+      const yyyy = dateObj.getFullYear();
+      const formattedDate = `${dd}${mm}${yyyy}`;
+      
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Product_Selection_${address.replace(/\s+/g, "_")}_${date}.docx`;
+      a.download = `ProductSelection${addressInitials}${formattedDate}.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -329,94 +235,21 @@ export default function ProductSheetApp() {
 
         {message && (
           <div
-            className="card message-card"
+            className="card"
             style={{
-              background:
-                message.type === "success"
-                  ? "#d4edda"
-                  : message.type === "info"
-                  ? "#cce5ff"
-                  : "#f8d7da",
+              background: message.type === "success" ? "#d4edda" : "#f8d7da",
               border: `1px solid ${
-                message.type === "success"
-                  ? "#c3e6cb"
-                  : message.type === "info"
-                  ? "#b8daff"
-                  : "#f5c6cb"
+                message.type === "success" ? "#c3e6cb" : "#f5c6cb"
               }`,
-              color:
-                message.type === "success"
-                  ? "#155724"
-                  : message.type === "info"
-                  ? "#004085"
-                  : "#721c24",
+              color: message.type === "success" ? "#155724" : "#721c24",
             }}
           >
             {message.text}
           </div>
         )}
 
-        {/* PDF Upload Zone - BWA Only */}
         <div className="card">
-          <h2 className="card-title">📄 Import from BWA PDF</h2>
-          <p className="text-sm text-gray-600 mb-3">
-            Upload a BWA quote/order PDF to automatically select matching products from your database.
-          </p>
-          <div
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            className={`pdf-drop-zone ${isDragging ? "dragging" : ""} ${parsingPdf ? "parsing" : ""}`}
-          >
-            <input
-              type="file"
-              accept=".pdf,application/pdf"
-              onChange={handleFileInput}
-              className="pdf-input"
-              disabled={parsingPdf}
-            />
-            <div className="pdf-drop-content">
-              <div className={`pdf-icon ${parsingPdf ? "spinning" : ""}`}>
-                {parsingPdf ? (
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <circle cx="12" cy="12" r="10" strokeWidth="2" opacity="0.25" />
-                    <path d="M4 12a8 8 0 018-8" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                ) : (
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </div>
-              <p className="pdf-title">
-                {parsingPdf
-                  ? "Extracting products..."
-                  : isDragging
-                  ? "Drop PDF here"
-                  : "Upload BWA PDF"}
-              </p>
-              <p className="pdf-subtitle">
-                {parsingPdf
-                  ? "Matching product codes with database..."
-                  : "Drag and drop a BWA PDF, or click to browse"}
-              </p>
-            </div>
-          </div>
-
-          {pdfParseInfo && pdfParseInfo.notFound.length > 0 && (
-            <div className="not-found-codes">
-              <p className="text-sm font-medium text-amber-700 mb-1">
-                Codes not found in database:
-              </p>
-              <p className="text-xs text-amber-600">
-                {pdfParseInfo.notFound.join(", ")}
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="card">
-          <h2 className="card-title">📄 Document Details</h2>
+          <h2 className="card-title">Document Details</h2>
           <div className="grid">
             <div className="field">
               <label>Address *</label>
@@ -479,23 +312,27 @@ export default function ProductSheetApp() {
         <div className="card">
           <div className="flex justify-between items-center mb-4">
             <h2 className="card-title" style={{ margin: 0 }}>
-              📦 Products from database (search by code/description)
+              Products ({filteredProducts.length} of {allProducts.length})
             </h2>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Type at least 2 chars to search..."
-              style={{ minWidth: "260px" }}
-            />
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Filter products..."
+                style={{ minWidth: "280px" }}
+              />
+            </div>
           </div>
 
           {loadingProducts && <p className="text-sm text-gray-500">Loading products...</p>}
 
-          {!loadingProducts && products.length === 0 && search.trim().length >= 2 && (
-            <p className="text-sm text-gray-500">No products found.</p>
+          {!loadingProducts && filteredProducts.length === 0 && (
+            <p className="text-sm text-gray-500">No products found{search.trim() ? ` for "${search}"` : ""}.</p>
           )}
 
+          {!loadingProducts && filteredProducts.length > 0 && (
+            <div className="products-scroll-box">
           {Object.keys(productsByArea).map((area) => (
             <div key={area} className="product-card">
               <div className="product-header">
@@ -509,19 +346,8 @@ export default function ProductSheetApp() {
                       key={product.id}
                       className="flex items-center justify-between border border-slate-200 rounded px-3 py-2 text-sm"
                     >
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-slate-800">
-                          {product.code}
-                        </div>
-                        <div className="text-slate-600 truncate">
-                          {product.description}
-                        </div>
-                        {typeof product.price === "number" &&
-                          Number.isFinite(product.price) && (
-                            <div className="text-slate-900 font-semibold">
-                              ${product.price.toFixed(2)}
-                            </div>
-                          )}
+                      <div className="flex-1 min-w-0 font-semibold text-slate-800">
+                        {product.code}
                       </div>
                       <button
                         className="btn-secondary btn-sm"
@@ -535,65 +361,74 @@ export default function ProductSheetApp() {
               </div>
             </div>
           ))}
+            </div>
+          )}
         </div>
 
         {selected.length > 0 && (
           <div className="card">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="card-title" style={{ margin: 0 }}>
-                ✅ Selected products ({selected.length})
-              </h2>
-              <button
-                className="btn-secondary btn-sm"
-                onClick={() => setSelected([])}
-              >
-                Clear all
-              </button>
-            </div>
-            <div className="space-y-2">
+            <h2 className="card-title">✅ Selected products ({selected.length})</h2>
+            <div className="selected-products-list">
               {selected.map((item) => (
                 <div
                   key={item.id}
-                  className="flex flex-wrap items-center gap-3 border border-slate-200 rounded px-3 py-2 text-sm"
+                  className="selected-product-item"
                 >
-                  <div className="font-semibold text-slate-800">
-                    {item.code}
+                  <div className="selected-product-header">
+                    <div className="selected-product-info">
+                      <span className="selected-product-code">{item.code}</span>
+                      <span className="selected-product-desc">{item.description}</span>
                   </div>
-                  <div className="text-slate-600 flex-1 min-w-[180px] truncate">
-                    {item.description}
+                    <button
+                      className="btn-danger btn-sm"
+                      onClick={() => toggleSelect(item)}
+                    >
+                      ✕ Remove
+                    </button>
                   </div>
+                  <div className="selected-product-fields-simple">
+                    <div className="field-group field-small">
+                      <label>Qty</label>
                   <input
-                    className="w-24 rounded border border-slate-300 px-2 py-1"
+                        type="text"
                     placeholder="Qty"
                     value={item.quantity}
                     onChange={(e) => updateSelected(item.id, "quantity", e.target.value)}
                   />
-                  <input
-                    className="flex-1 min-w-[160px] rounded border border-slate-300 px-2 py-1"
-                    placeholder="Notes"
+                    </div>
+                    <div className="field-group field-notes-tall">
+                      <label>Notes</label>
+                      <textarea
+                        placeholder="Additional notes... (supports line breaks)"
                     value={item.notes}
                     onChange={(e) => updateSelected(item.id, "notes", e.target.value)}
-                  />
-                  <button
-                    className="btn-danger btn-sm"
-                    onClick={() => toggleSelect(item as unknown as ApiProduct)}
-                  >
-                    ✕
-                  </button>
+                        rows={3}
+                      />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end items-center gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={downloadAsWord}
+              onChange={(e) => setDownloadAsWord(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300"
+            />
+            <span className="text-sm text-gray-600">Download as Word (.docx)</span>
+          </label>
           <button
             className="btn-primary"
             onClick={generateDocument}
             disabled={generating}
             style={{ padding: "0.75rem 2rem", fontSize: "1rem" }}
           >
-            {generating ? "⏳ Generating..." : "📥 Generate Document"}
+            {generating ? "⏳ Generating..." : `📥 Generate ${downloadAsWord ? "Word" : "PDF"}`}
           </button>
         </div>
       </div>
@@ -637,12 +472,6 @@ export default function ProductSheetApp() {
           margin-bottom: 1.5rem;
         }
 
-        .message-card {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-
         .card-title {
           font-size: 1.1rem;
           font-weight: 600;
@@ -650,92 +479,6 @@ export default function ProductSheetApp() {
           display: flex;
           align-items: center;
           gap: 0.5rem;
-        }
-
-        /* PDF Upload Zone Styles */
-        .pdf-drop-zone {
-          position: relative;
-          border: 2px dashed #ddd;
-          border-radius: 12px;
-          padding: 2rem;
-          text-align: center;
-          transition: all 0.2s ease;
-          cursor: pointer;
-        }
-
-        .pdf-drop-zone:hover {
-          border-color: #00f0ff;
-          background: rgba(0, 240, 255, 0.03);
-        }
-
-        .pdf-drop-zone.dragging {
-          border-color: #00f0ff;
-          background: rgba(0, 240, 255, 0.08);
-        }
-
-        .pdf-drop-zone.parsing {
-          opacity: 0.7;
-          pointer-events: none;
-        }
-
-        .pdf-input {
-          position: absolute;
-          inset: 0;
-          width: 100%;
-          height: 100%;
-          opacity: 0;
-          cursor: pointer;
-        }
-
-        .pdf-drop-content {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.5rem;
-        }
-
-        .pdf-icon {
-          width: 48px;
-          height: 48px;
-          border-radius: 50%;
-          background: #f0f0f0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #666;
-          margin-bottom: 0.5rem;
-        }
-
-        .pdf-icon.spinning svg {
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-        .pdf-drop-zone.dragging .pdf-icon {
-          background: rgba(0, 240, 255, 0.15);
-          color: #00f0ff;
-        }
-
-        .pdf-title {
-          font-weight: 600;
-          color: #333;
-        }
-
-        .pdf-subtitle {
-          font-size: 0.875rem;
-          color: #666;
-        }
-
-        .not-found-codes {
-          margin-top: 1rem;
-          padding: 0.75rem 1rem;
-          background: #fffbeb;
-          border: 1px solid #fcd34d;
-          border-radius: 8px;
         }
 
         .grid {
@@ -782,8 +525,8 @@ export default function ProductSheetApp() {
         select:focus,
         textarea:focus {
           outline: none;
-          border-color: #00f0ff;
-          box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.15);
+          border-color: #0066cc;
+          box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
         }
 
         textarea {
@@ -803,18 +546,16 @@ export default function ProductSheetApp() {
         }
 
         .btn-primary {
-          background: #00f0ff;
-          color: #36454f;
-          font-weight: 600;
+          background: #0066cc;
+          color: white;
         }
 
         .btn-primary:hover {
-          background: #00d4e0;
+          background: #0052a3;
         }
 
         .btn-primary:disabled {
           background: #999;
-          color: #fff;
           cursor: not-allowed;
         }
 
@@ -841,12 +582,25 @@ export default function ProductSheetApp() {
           font-size: 0.75rem;
         }
 
+        .products-scroll-box {
+          max-height: 400px;
+          overflow-y: auto;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          padding: 0.5rem;
+          background: #f8fafc;
+        }
+
         .product-card {
-          background: #fafafa;
+          background: #fff;
           border: 1px solid #eee;
           border-radius: 6px;
           padding: 1rem;
-          margin-bottom: 1rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .product-card:last-child {
+          margin-bottom: 0;
         }
 
         .product-header {
@@ -888,22 +642,6 @@ export default function ProductSheetApp() {
           margin-bottom: 1rem;
         }
 
-        .mb-3 {
-          margin-bottom: 0.75rem;
-        }
-
-        .text-sm {
-          font-size: 0.875rem;
-        }
-
-        .text-xs {
-          font-size: 0.75rem;
-        }
-
-        .text-gray-600 {
-          color: #666;
-        }
-
         .image-preview {
           width: 60px;
           height: 60px;
@@ -937,6 +675,108 @@ export default function ProductSheetApp() {
           padding: 0.25rem 0;
         }
 
+        .selected-products-list {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .selected-product-item {
+          background: #fafafa;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 1rem;
+        }
+
+        .selected-product-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 0.75rem;
+          padding-bottom: 0.75rem;
+          border-bottom: 1px solid #e2e8f0;
+        }
+
+        .selected-product-info {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .selected-product-code {
+          font-weight: 700;
+          font-size: 1rem;
+          color: #1e293b;
+          background: #e2e8f0;
+          padding: 0.25rem 0.5rem;
+          border-radius: 4px;
+        }
+
+        .selected-product-desc {
+          color: #475569;
+          font-size: 0.875rem;
+        }
+
+        .selected-product-original-price {
+          color: #64748b;
+          font-size: 0.75rem;
+          background: #f1f5f9;
+          padding: 0.125rem 0.375rem;
+          border-radius: 3px;
+        }
+
+        .selected-product-fields-simple {
+          display: grid;
+          grid-template-columns: 80px 1fr;
+          gap: 0.75rem;
+          align-items: start;
+        }
+
+        .field-group {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .field-group label {
+          font-size: 0.75rem;
+          font-weight: 500;
+          color: #64748b;
+        }
+
+        .field-group input,
+        .field-group textarea {
+          padding: 0.5rem 0.75rem;
+          border: 1px solid #cbd5e1;
+          border-radius: 4px;
+          font-size: 0.875rem;
+          width: 100%;
+        }
+
+        .field-group input:focus,
+        .field-group textarea:focus {
+          outline: none;
+          border-color: #0066cc;
+          box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+        }
+
+        .field-small {
+          min-width: 80px;
+          max-width: 80px;
+        }
+
+        .field-notes-tall {
+          flex: 1;
+        }
+
+        .field-notes-tall textarea {
+          min-height: 80px;
+          resize: vertical;
+          font-family: inherit;
+          line-height: 1.5;
+        }
+
         @media (max-width: 768px) {
           .grid-3 {
             grid-template-columns: 1fr;
@@ -945,8 +785,12 @@ export default function ProductSheetApp() {
           .field.span-3 {
             grid-column: span 1;
           }
+          .selected-product-fields {
+            grid-template-columns: 1fr 1fr;
+          }
         }
       `}</style>
     </>
   );
 }
+

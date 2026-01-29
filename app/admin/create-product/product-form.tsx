@@ -17,31 +17,34 @@ type ProductForm = {
   code: string;
   areaId: string;
   description: string;
-  manufacturerDescription: string;
   productDetails: string;
-  price: string;
+  link: string;
+  brand: string;
+  keywords: string;
   imageFile: File | null;
   imagePreview: string | null;
 };
+
+const createEmptyForm = (): ProductForm => ({
+  id: crypto.randomUUID(),
+  code: "",
+  areaId: "",
+  description: "",
+  productDetails: "",
+  link: "",
+  brand: "",
+  keywords: "",
+  imageFile: null,
+  imagePreview: null,
+});
 
 export default function CreateProductForm() {
   const router = useRouter();
   const [areas, setAreas] = useState<Area[]>([]);
   const [loadingAreas, setLoadingAreas] = useState(false);
-  const [forms, setForms] = useState<ProductForm[]>([
-    {
-      id: crypto.randomUUID(),
-      code: "",
-      areaId: "",
-      description: "",
-      manufacturerDescription: "",
-      productDetails: "",
-      price: "",
-      imageFile: null,
-      imagePreview: null,
-    },
-  ]);
+  const [forms, setForms] = useState<ProductForm[]>([createEmptyForm()]);
   const [saving, setSaving] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
 
   const updateForm = (id: string, updates: Partial<ProductForm>) => {
@@ -51,20 +54,7 @@ export default function CreateProductForm() {
   };
 
   const addForm = () => {
-    setForms((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        code: "",
-        areaId: "",
-        description: "",
-        manufacturerDescription: "",
-        productDetails: "",
-        price: "",
-        imageFile: null,
-        imagePreview: null,
-      },
-    ]);
+    setForms((prev) => [...prev, createEmptyForm()]);
   };
 
   useEffect(() => {
@@ -105,10 +95,6 @@ export default function CreateProductForm() {
         setError("Description is required for all products.");
         return;
       }
-      if (!form.imageFile) {
-        setError("Image is required for all products.");
-        return;
-      }
       if (!form.areaId) {
         setError("Area is required for all products.");
         return;
@@ -116,44 +102,76 @@ export default function CreateProductForm() {
     }
 
     setSaving(true);
+    setProgress({ current: 0, total: forms.length });
 
     try {
-      // Save all products
-      for (const form of forms) {
-        // Compress image
-        const options = {
-          maxSizeMB: 1,
-          maxWidthOrHeight: 1920,
-          useWebWorker: true,
-        };
-        const compressedFile = await imageCompression(form.imageFile!, options);
+      // Prepare all form data in parallel (compress images)
+      const preparedForms = await Promise.all(
+        forms.map(async (form) => {
+          let compressedFile: File | Blob | null = null;
+          
+          if (form.imageFile) {
+            const options = {
+              maxSizeMB: 1,
+              maxWidthOrHeight: 1920,
+              useWebWorker: true,
+            };
+            compressedFile = await imageCompression(form.imageFile, options);
+          }
 
-        const formData = new FormData();
-        formData.append("name", form.name.trim());
-        formData.append("code", form.code.trim());
-        formData.append("areaId", form.areaId);
-        formData.append("description", form.description.trim());
-        formData.append(
-          "manufacturerDescription",
-          form.manufacturerDescription.trim()
+          const formData = new FormData();
+          formData.append("code", form.code.trim());
+          formData.append("areaId", form.areaId);
+          formData.append("description", form.description.trim());
+          formData.append("productDetails", form.productDetails.trim());
+          formData.append("link", form.link.trim());
+          formData.append("brand", form.brand.trim());
+          formData.append("keywords", form.keywords.trim());
+          
+          if (compressedFile) {
+            formData.append("image", compressedFile);
+          }
+
+          return { form, formData };
+        })
+      );
+
+      // Upload all products in parallel (batch of 3 at a time for efficiency)
+      const batchSize = 3;
+      const results: { success: boolean; error?: string }[] = [];
+
+      for (let i = 0; i < preparedForms.length; i += batchSize) {
+        const batch = preparedForms.slice(i, i + batchSize);
+        
+        const batchResults = await Promise.all(
+          batch.map(async ({ formData }) => {
+            try {
+              const res = await fetch("/api/admin/products", {
+                method: "POST",
+                body: formData,
+              });
+              const data = await res.json();
+              
+              if (!res.ok) {
+                return { success: false, error: data?.error || "Failed to create product" };
+              }
+              return { success: true };
+            } catch (err) {
+              return { success: false, error: "Network error" };
+            }
+          })
         );
-        formData.append("productDetails", form.productDetails.trim());
-        const cleanPrice = form.price.trim();
-        formData.append("price", cleanPrice);
-        formData.append("image", compressedFile);
 
-        const res = await fetch("/api/admin/products", {
-          method: "POST",
-          body: formData,
-        });
+        results.push(...batchResults);
+        setProgress({ current: Math.min(i + batchSize, preparedForms.length), total: forms.length });
+      }
 
-        const data = await res.json();
-
-        if (!res.ok) {
-          setError(data?.error || "Failed to create product.");
-          setSaving(false);
-          return;
-        }
+      // Check for errors
+      const errors = results.filter((r) => !r.success);
+      if (errors.length > 0) {
+        setError(`Failed to create ${errors.length} product(s): ${errors[0].error}`);
+        setSaving(false);
+        return;
       }
 
       // Success - redirect to admin with toast
@@ -202,20 +220,37 @@ export default function CreateProductForm() {
 
             <div className="grid grid-cols-1 md:grid-cols-[1fr,280px] gap-6">
               <div className="space-y-4">
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Code<span className="text-red-600">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                    value={form.code}
-                    onChange={(e) =>
-                      updateForm(form.id, { code: e.target.value.toUpperCase() })
-                    }
-                    placeholder="e.g. A001"
-                    required
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="block text-sm font-medium text-slate-700">
+                      Code<span className="text-red-600">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      value={form.code}
+                      onChange={(e) =>
+                        updateForm(form.id, { code: e.target.value.toUpperCase() })
+                      }
+                      placeholder="e.g. A001"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-sm font-medium text-slate-700">
+                      Brand
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                      value={form.brand}
+                      onChange={(e) =>
+                        updateForm(form.id, { brand: e.target.value })
+                      }
+                      placeholder="e.g. Samsung, Bosch"
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-1">
@@ -245,7 +280,7 @@ export default function CreateProductForm() {
                   </label>
                   <textarea
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                    rows={3}
+                    rows={2}
                     value={form.description}
                     onChange={(e) =>
                       updateForm(form.id, { description: e.target.value })
@@ -256,18 +291,20 @@ export default function CreateProductForm() {
 
                 <div className="space-y-1">
                   <label className="block text-sm font-medium text-slate-700">
-                    Manufacturer Description
+                    Keywords
                   </label>
-                  <textarea
+                  <input
+                    type="text"
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                    rows={2}
-                    value={form.manufacturerDescription}
+                    value={form.keywords}
                     onChange={(e) =>
-                      updateForm(form.id, {
-                        manufacturerDescription: e.target.value,
-                      })
+                      updateForm(form.id, { keywords: e.target.value })
                     }
+                    placeholder="e.g. oven, stove, black, modern"
                   />
+                  <p className="text-xs text-slate-500">
+                    Comma-separated keywords for search
+                  </p>
                 </div>
 
                 <div className="space-y-1">
@@ -286,43 +323,24 @@ export default function CreateProductForm() {
 
                 <div className="space-y-1">
                   <label className="block text-sm font-medium text-slate-700">
-                    Price
+                    Product Link
                   </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
-                      $
-                    </span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 pl-7 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      value={form.price}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        let cleaned = raw.replace(/[^\d.]/g, "");
-                        const parts = cleaned.split(".");
-                        if (parts.length > 2) {
-                          cleaned = `${parts[0]}.${parts.slice(1).join("")}`;
-                        }
-                        if (cleaned.includes(".")) {
-                          const [int, dec] = cleaned.split(".");
-                          cleaned = `${int}.${(dec || "").slice(0, 2)}`;
-                        }
-                        updateForm(form.id, { price: cleaned });
-                      }}
-                      placeholder="e.g. 199.99"
-                    />
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    Numbers only; $ is prefixed automatically.
-                  </p>
+                  <input
+                    type="url"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    value={form.link}
+                    onChange={(e) =>
+                      updateForm(form.id, { link: e.target.value })
+                    }
+                    placeholder="https://..."
+                  />
                 </div>
               </div>
 
               <div className="space-y-3">
                 <div className="space-y-1">
                   <label className="block text-sm font-medium text-slate-700">
-                    Image<span className="text-red-600">*</span>
+                    Image
                   </label>
                   <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 flex flex-col items-center justify-center gap-2 bg-slate-50">
                     {form.imagePreview ? (
@@ -334,9 +352,14 @@ export default function CreateProductForm() {
                         />
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-500 text-center">
-                        Upload product image
-                      </p>
+                      <div className="text-center">
+                        <p className="text-sm text-slate-500">
+                          Upload product image
+                        </p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Optional - defaults to placeholder
+                        </p>
+                      </div>
                     )}
                     <input
                       type="file"
@@ -349,7 +372,6 @@ export default function CreateProductForm() {
                         });
                       }}
                       className="w-full text-sm"
-                      required={!form.imageFile}
                     />
                   </div>
                 </div>
@@ -364,17 +386,19 @@ export default function CreateProductForm() {
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 items-center">
           <Button
             type="button"
             variant="outline"
             onClick={addForm}
             disabled={saving}
           >
-            Add Product
+            + Add Another Product
           </Button>
           <Button type="submit" disabled={saving}>
-            {saving ? "Adding to system..." : "Add to System"}
+            {saving 
+              ? `Adding ${progress.current}/${progress.total}...` 
+              : `Add ${forms.length} Product${forms.length > 1 ? 's' : ''} to System`}
           </Button>
         </div>
       </form>

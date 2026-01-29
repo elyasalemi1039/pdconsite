@@ -10,20 +10,17 @@ type IncomingProduct = {
   category?: string;
   code?: string;
   description?: string;
-  manufacturerDescription?: string;
   productDetails?: string;
-  areaDescription?: string;
   quantity?: string;
-  price?: string;
   notes?: string;
   image?: string | null;
   imageUrl?: string | null;
+  link?: string | null;
 };
 
 function buildProductDetails(p: IncomingProduct) {
   const parts: string[] = [];
   if (p.productDetails?.trim()) parts.push(p.productDetails.trim());
-  if (p.areaDescription?.trim()) parts.push(`Area: ${p.areaDescription.trim()}`);
   if (p.quantity?.trim()) parts.push(`Qty: ${p.quantity.trim()}`);
   if (p.notes?.trim()) parts.push(`Notes: ${p.notes.trim()}`);
   return parts.length ? parts.join(" | ") : null;
@@ -55,7 +52,7 @@ export async function POST(req: Request) {
 
   try {
     for (const raw of products as IncomingProduct[]) {
-      const areaName = (raw?.category || raw?.areaDescription || "Other").trim();
+      const areaName = (raw?.category || "Other").trim();
       const code = raw?.code?.trim();
       if (!code) {
         throw new Error("Product code is required for all rows.");
@@ -65,19 +62,9 @@ export async function POST(req: Request) {
         (await prisma.area.findFirst({ where: { name: areaName } })) ||
         (await prisma.area.create({ data: { name: areaName || "Other" } }));
 
-      const description =
-        raw?.description?.trim() ||
-        raw?.manufacturerDescription?.trim() ||
-        code;
-      const manufacturerDescription =
-        raw?.manufacturerDescription?.trim() || null;
+      const description = raw?.description?.trim() || code;
       const productDetails = buildProductDetails(raw);
-
-      const priceNumber = raw?.price ? Number.parseFloat(raw.price) : NaN;
-      const price =
-        Number.isFinite(priceNumber) && !Number.isNaN(priceNumber)
-          ? priceNumber
-          : null;
+      const link = raw?.link?.trim() || null;
 
       let imageUrl = raw?.imageUrl?.trim() || "";
 
@@ -101,10 +88,9 @@ export async function POST(req: Request) {
           code,
           areaId: area.id,
           description,
-          manufacturerDescription,
           productDetails,
-          price,
           imageUrl,
+          link,
         },
       });
 
