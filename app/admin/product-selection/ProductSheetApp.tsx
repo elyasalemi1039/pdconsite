@@ -182,7 +182,7 @@ export default function ProductSheetApp() {
 
   const updateSelected = (
     id: string,
-    field: keyof Pick<SelectedProduct, "quantity" | "notes" | "description">,
+    field: keyof Pick<SelectedProduct, "quantity" | "notes">,
     value: string
   ) => {
     setSelected((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
@@ -824,13 +824,7 @@ export default function ProductSheetApp() {
                         </span>
                         <span className="text-xs text-slate-500">{item.areaName}</span>
                       </div>
-                      <input
-                        type="text"
-                        value={item.description}
-                        onChange={(e) => updateSelected(item.id, "description", e.target.value)}
-                        className="w-full text-sm text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 focus:outline-none py-0.5 transition-colors"
-                        title="Click to edit description"
-                      />
+                      <p className="text-sm text-slate-800 truncate">{item.description}</p>
                   </div>
 
                     {/* Remove Button */}
