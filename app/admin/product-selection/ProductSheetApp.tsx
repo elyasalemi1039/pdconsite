@@ -74,10 +74,10 @@ export default function ProductSheetApp() {
         const data = await resp.json();
         setAllProducts(data.products || []);
       } catch (err) {
-        setMessage({
-          type: "error",
-          text: err instanceof Error ? err.message : "Failed to fetch products",
-        });
+          setMessage({
+            type: "error",
+            text: err instanceof Error ? err.message : "Failed to fetch products",
+          });
       } finally {
         setLoadingProducts(false);
       }
@@ -182,7 +182,7 @@ export default function ProductSheetApp() {
 
   const updateSelected = (
     id: string,
-    field: keyof Pick<SelectedProduct, "quantity" | "notes">,
+    field: keyof Pick<SelectedProduct, "quantity" | "notes" | "description">,
     value: string
   ) => {
     setSelected((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
@@ -613,8 +613,8 @@ export default function ProductSheetApp() {
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Search (code, description, brand, keywords)
               </label>
-              <input
-                type="text"
+            <input
+              type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Type to search..."
@@ -656,7 +656,7 @@ export default function ProductSheetApp() {
               </select>
             </div>
           </div>
-          
+
           <p className="text-xs text-slate-500 mt-2">
             Showing {filteredProducts.length} of {allProducts.length} products
           </p>
@@ -713,10 +713,10 @@ export default function ProductSheetApp() {
                     {isExpanded && (
                       <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-white">
                         {areaProducts.map((product) => {
-                          const isSelected = selected.some((s) => s.id === product.id);
-                          return (
-                            <div
-                              key={product.id}
+                  const isSelected = selected.some((s) => s.id === product.id);
+                  return (
+                    <div
+                      key={product.id}
                               className={`rounded-lg border-2 overflow-hidden transition-all ${
                                 isSelected
                                   ? "border-amber-500 bg-amber-50"
@@ -750,12 +750,12 @@ export default function ProductSheetApp() {
                               <div className="p-3">
                                 <div className="flex items-start justify-between gap-2 mb-2">
                                   <span className="bg-slate-200 text-slate-800 text-xs font-bold px-2 py-1 rounded">
-                                    {product.code}
+                          {product.code}
                                   </span>
                                   {product.brand && (
                                     <span className="text-xs text-slate-500">{product.brand}</span>
                                   )}
-                                </div>
+                        </div>
                                 <p className="text-sm text-slate-800 mb-2 line-clamp-2">{product.description}</p>
                                 {product.productDetails && (
                                   <p className="text-xs text-slate-500 mb-3 line-clamp-2">
@@ -774,16 +774,16 @@ export default function ProductSheetApp() {
                                 >
                                   {isSelected ? "Remove" : "Add to Selection"}
                                 </button>
-                              </div>
+                        </div>
                             </div>
                           );
                         })}
                       </div>
                     )}
-                  </div>
-                );
-              })}
-            </div>
+                    </div>
+                  );
+                })}
+              </div>
           )}
         </div>
 
@@ -820,12 +820,18 @@ export default function ProductSheetApp() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="bg-slate-200 text-slate-800 text-xs font-bold px-2 py-1 rounded">
-                          {item.code}
+                    {item.code}
                         </span>
                         <span className="text-xs text-slate-500">{item.areaName}</span>
                       </div>
-                      <p className="text-sm text-slate-800 truncate">{item.description}</p>
-                    </div>
+                      <input
+                        type="text"
+                        value={item.description}
+                        onChange={(e) => updateSelected(item.id, "description", e.target.value)}
+                        className="w-full text-sm text-slate-800 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-amber-500 focus:outline-none py-0.5 transition-colors"
+                        title="Click to edit description"
+                      />
+                  </div>
 
                     {/* Remove Button */}
                     <button
@@ -842,11 +848,11 @@ export default function ProductSheetApp() {
                   <div className="mt-3 grid grid-cols-[80px_1fr] gap-3">
                     <div>
                       <label className="block text-xs text-slate-500 mb-1">Qty</label>
-                      <input
+                  <input
                         type="text"
-                        placeholder="Qty"
-                        value={item.quantity}
-                        onChange={(e) => updateSelected(item.id, "quantity", e.target.value)}
+                    placeholder="Qty"
+                    value={item.quantity}
+                    onChange={(e) => updateSelected(item.id, "quantity", e.target.value)}
                         className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                       />
                     </div>
@@ -854,8 +860,8 @@ export default function ProductSheetApp() {
                       <label className="block text-xs text-slate-500 mb-1">Notes</label>
                       <textarea
                         placeholder="Additional notes..."
-                        value={item.notes}
-                        onChange={(e) => updateSelected(item.id, "notes", e.target.value)}
+                    value={item.notes}
+                    onChange={(e) => updateSelected(item.id, "notes", e.target.value)}
                         rows={2}
                         className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
                       />
