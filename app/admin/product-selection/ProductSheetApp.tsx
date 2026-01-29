@@ -489,6 +489,10 @@ export default function ProductSheetApp() {
             <div className="mt-4 space-y-3">
               {pdfParseInfo.notFound.map((code) => {
                 const suggestions = pdfParseInfo.suggestedMatches[code] || [];
+                // Filter out suggestions that are already selected
+                const availableSuggestions = suggestions.filter(
+                  (s) => !selected.some((sel) => sel.id === s.id)
+                );
                 return (
                   <div key={code} className="px-4 py-3 rounded-lg bg-amber-50 border border-amber-200">
                     <p className="text-sm font-medium text-amber-700 mb-2">
@@ -496,23 +500,40 @@ export default function ProductSheetApp() {
                     </p>
                     {suggestions.length > 0 ? (
                       <div className="space-y-2">
-                        <p className="text-xs text-amber-600">Did you mean:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {suggestions.map((suggestion) => (
-                            <button
-                              key={suggestion.id}
-                              onClick={() => {
-                                const product = allProducts.find((p) => p.id === suggestion.id);
-                                if (product) addProductToSelected(product);
-                              }}
-                              className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-amber-300 rounded text-xs hover:bg-amber-100 transition-colors"
-                            >
-                              <span className="font-medium text-amber-800">{suggestion.code}</span>
-                              <span className="text-amber-600">({suggestion.matchType})</span>
-                              <span className="text-green-600 font-bold">+</span>
-                            </button>
-                          ))}
-                        </div>
+                        {availableSuggestions.length > 0 ? (
+                          <>
+                            <p className="text-xs text-amber-600">Did you mean:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {availableSuggestions.map((suggestion) => (
+                                <button
+                                  key={suggestion.id}
+                                  onClick={() => {
+                                    const product = allProducts.find((p) => p.id === suggestion.id);
+                                    if (product) {
+                                      addProductToSelected(product);
+                                      // Remove this code from notFound list
+                                      setPdfParseInfo((prev) =>
+                                        prev
+                                          ? {
+                                              ...prev,
+                                              notFound: prev.notFound.filter((c) => c !== code),
+                                            }
+                                          : null
+                                      );
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-amber-300 rounded text-xs hover:bg-amber-100 transition-colors"
+                                >
+                                  <span className="font-medium text-amber-800">{suggestion.code}</span>
+                                  <span className="text-amber-600">({suggestion.matchType})</span>
+                                  <span className="text-green-600 font-bold">+</span>
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-xs text-green-600">✓ A suggested product was added</p>
+                        )}
                       </div>
                     ) : (
                       <p className="text-xs text-amber-600">No similar products found</p>
