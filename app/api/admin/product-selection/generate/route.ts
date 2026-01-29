@@ -151,7 +151,15 @@ export async function POST(req: Request) {
     },
     getSize: (imgData: ArrayBuffer | Uint8Array | Buffer, _tagValue: string, _tagName?: string) => {
       // Try to get actual dimensions and scale proportionally
-      const buffer = Buffer.isBuffer(imgData) ? imgData : Buffer.from(imgData);
+      let buffer: Buffer;
+      if (Buffer.isBuffer(imgData)) {
+        buffer = imgData;
+      } else if (imgData instanceof Uint8Array) {
+        buffer = Buffer.from(imgData);
+      } else {
+        // ArrayBuffer
+        buffer = Buffer.from(new Uint8Array(imgData));
+      }
       const base64 = buffer.toString("base64");
       const dims = getImageDimensions(base64);
       
