@@ -105,7 +105,22 @@ function extractProductCodes(text: string): string[] {
     }
     
     if (codeWords.length > 0) {
-      const fullCode = `${category} ${codeWords.join(" ")}`;
+      // Join code words, but connect parts that end with hyphen directly to the next part
+      let codeStr = "";
+      for (let j = 0; j < codeWords.length; j++) {
+        const word = codeWords[j];
+        if (j === 0) {
+          codeStr = word;
+        } else {
+          // If previous part ends with hyphen, connect directly (no space)
+          if (codeStr.endsWith("-")) {
+            codeStr += word;
+          } else {
+            codeStr += " " + word;
+          }
+        }
+      }
+      const fullCode = `${category} ${codeStr}`;
       codes.add(fullCode);
     }
   }
