@@ -21,13 +21,15 @@ type IncomingProduct = {
   link?: string | null; // product link for hyperlink
 };
 
-const CATEGORY_ORDER = [
+// Priority order for categories - categories not in this list will be sorted alphabetically after
+const CATEGORY_PRIORITY = [
   "Kitchen",
   "Bathroom",
   "Bedroom",
   "Living Room",
   "Laundry",
   "Balcony",
+  "Garage",
   "Other",
 ];
 
@@ -240,9 +242,31 @@ export async function POST(req: Request) {
     });
   });
 
-  const categories = CATEGORY_ORDER.filter(
+  // Get all categories that have products, sorted by priority then alphabetically
+  const allCategoryNames = Object.keys(productsByCategory).filter(
     (cat) => productsByCategory[cat]?.length > 0
-  ).map((cat) => ({
+  );
+  
+  // Sort: priority categories first (in order), then remaining alphabetically
+  allCategoryNames.sort((a, b) => {
+    const aIndex = CATEGORY_PRIORITY.findIndex(
+      (p) => a.toLowerCase().startsWith(p.toLowerCase())
+    );
+    const bIndex = CATEGORY_PRIORITY.findIndex(
+      (p) => b.toLowerCase().startsWith(p.toLowerCase())
+    );
+    
+    // Both in priority list
+    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+    // Only a in priority
+    if (aIndex !== -1) return -1;
+    // Only b in priority
+    if (bIndex !== -1) return 1;
+    // Neither in priority - sort alphabetically
+    return a.localeCompare(b);
+  });
+  
+  const categories = allCategoryNames.map((cat) => ({
     "category-name": cat.toUpperCase(),
     products: productsByCategory[cat],
   }));
