@@ -78,18 +78,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Area not found" }, { status: 404 });
     }
 
-    // Check if area has products
-    const productCount = await prisma.product.count({
-      where: { areaId: id },
-    });
-
-    if (productCount > 0) {
-      return NextResponse.json(
-        { error: `Cannot delete: ${productCount} product(s) are using this area` },
-        { status: 400 }
-      );
-    }
-
+    // Areas are now only used in product selections (per-product), so we can delete freely
     await prisma.area.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
