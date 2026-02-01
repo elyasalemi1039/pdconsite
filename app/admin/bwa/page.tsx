@@ -13,6 +13,7 @@ type Row = {
   link: string;
   productDetails: string;
   area: string;
+  price: string;
 };
 
 type Area = {
@@ -20,12 +21,22 @@ type Area = {
   name: string;
 };
 
-export default function BwaPage() {
+type Supplier = {
+  id: string;
+  name: string;
+  columnMappings: { column: number; field: string }[];
+  startRow: number;
+  hasHeaderRow: boolean;
+};
+
+export default function ProductImportPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [saving, setSaving] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [areas, setAreas] = useState<Area[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
 
   useEffect(() => {
     // Fetch areas from database
@@ -37,13 +48,30 @@ export default function BwaPage() {
         }
       })
       .catch(() => toast.error("Failed to load areas"));
+
+    // Fetch suppliers
+    fetch("/api/admin/suppliers")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.suppliers) {
+          setSuppliers(data.suppliers);
+        }
+      })
+      .catch(() => toast.error("Failed to load suppliers"));
   }, []);
 
   const handleFile = async (file: File) => {
+    if (!selectedSupplierId) {
+      toast.error("Please select a supplier first");
+      return;
+    }
+
     setExtracting(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("supplierId", selectedSupplierId);
+      
       const res = await fetch("/api/admin/bwa/extract", {
         method: "POST",
         body: formData,
@@ -56,13 +84,14 @@ export default function BwaPage() {
           (data.rows || []).map((r: any) => ({
             id: crypto.randomUUID(),
             code: r.code || "",
-            name: r.name || "",
+            name: r.name || r.description || "",
             imageBase64: r.imageBase64 || null,
-            brand: "",
-            keywords: "",
-            link: "",
-            productDetails: "",
-            area: areas[0]?.name || "Kitchen",
+            brand: r.brand || "",
+            keywords: r.keywords || "",
+            link: r.link || "",
+            productDetails: r.productDetails || "",
+            area: r.area || areas[0]?.name || "Kitchen",
+            price: r.price || "",
           })) || [];
         if (imported.length === 0) {
           toast.error("No products detected in file.");
@@ -179,15 +208,17 @@ export default function BwaPage() {
     }
   };
 
+  const selectedSupplier = suppliers.find((s) => s.id === selectedSupplierId);
+
   return (
     <main className="min-h-screen bg-slate-50 py-16 px-4">
       <Toaster />
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">BWA Import</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">Product Import</h1>
             <p className="text-sm text-slate-600">
-              Upload a BWA PDF to extract products with images. The "BWA" prefix will be automatically removed from codes.
+              Upload a supplier PDF/DOCX to extract products with images
             </p>
           </div>
           <a href="/admin" className="text-sm text-blue-600 hover:underline">
@@ -195,24 +226,65 @@ export default function BwaPage() {
           </a>
         </div>
 
+        {/* Supplier Selection */}
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
+          <label className="block text-sm font-medium text-slate-700 mb-2">
+            1. Select Supplier
+          </label>
+          {suppliers.length === 0 ? (
+            <div className="text-sm text-slate-500">
+              No suppliers configured.{" "}
+              <a href="/admin/suppliers" className="text-blue-600 hover:underline">
+                Add a supplier first
+              </a>
+            </div>
+          ) : (
+            <select
+              value={selectedSupplierId}
+              onChange={(e) => setSelectedSupplierId(e.target.value)}
+              className="w-full max-w-md px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+            >
+              <option value="">-- Select a supplier --</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {selectedSupplier && (
+            <div className="mt-3 text-xs text-slate-500">
+              Column mapping:{" "}
+              {selectedSupplier.columnMappings
+                .map((m) => `Col ${m.column} → ${m.field}`)
+                .join(", ")}
+            </div>
+          )}
+        </div>
+
+        {/* File Upload */}
         <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4 space-y-4">
           <div className="flex items-center gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Upload BWA PDF or DOCX
+                2. Upload PDF or DOCX
               </label>
               <input
                 type="file"
                 accept="application/pdf,.docx"
+                disabled={!selectedSupplierId}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) handleFile(file);
                 }}
-                className="text-sm"
+                className="text-sm disabled:opacity-50"
               />
             </div>
             {extracting && <span className="text-sm text-slate-500">Extracting...</span>}
           </div>
+          {!selectedSupplierId && (
+            <p className="text-xs text-amber-600">Select a supplier first to enable upload</p>
+          )}
         </div>
 
         {rows.length > 0 && (
@@ -254,6 +326,9 @@ export default function BwaPage() {
                       <div className="flex-1">
                         <div className="font-semibold text-slate-800">{r.code}</div>
                         <div className="text-sm text-slate-600 line-clamp-1">{r.name}</div>
+                        {r.price && (
+                          <div className="text-xs text-green-600">${r.price}</div>
+                        )}
                       </div>
 
                       {/* Action Buttons */}
@@ -387,7 +462,16 @@ export default function BwaPage() {
 
         {rows.length === 0 && !extracting && (
           <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-8 text-center text-slate-500">
-            Upload a BWA PDF or DOCX file to get started
+            {suppliers.length === 0 ? (
+              <div>
+                <p className="mb-2">No suppliers configured yet</p>
+                <a href="/admin/suppliers" className="text-blue-600 hover:underline">
+                  Add a supplier to get started
+                </a>
+              </div>
+            ) : (
+              "Select a supplier and upload a PDF or DOCX file to get started"
+            )}
           </div>
         )}
       </div>

@@ -72,9 +72,12 @@ export default async function AdminPage() {
             <span className="text-xl">📥</span>
             <h2 className="text-lg font-semibold text-slate-900">Import</h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Link href="/admin/bwa" className="w-full">
-              <Button variant="outline" className="w-full">BWA Import</Button>
+              <Button variant="outline" className="w-full">Product Import</Button>
+            </Link>
+            <Link href="/admin/suppliers" className="w-full">
+              <Button variant="outline" className="w-full">Manage Suppliers</Button>
             </Link>
           </div>
         </div>

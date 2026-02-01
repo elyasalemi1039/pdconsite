@@ -62,4 +62,12 @@ model SavedSelection {
   status       String   @default("draft") // draft, completed
 }
 
-
+model Supplier {
+  id             String   @id @default(uuid())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  name           String   @unique
+  columnMappings Json     // Array of { column: number, field: string } mappings
+  startRow       Int      @default(2) // Which row to start reading from (1 = first row, 2 = skip header)
+  hasHeaderRow   Boolean  @default(true)
+}
