@@ -238,7 +238,7 @@ export async function POST(req: Request) {
 
     // Get ALL products from database for matching
     const allProducts = await prisma.product.findMany({
-      include: { area: true },
+      include: { type: true },
     });
 
     // Try exact matches (case-insensitive, normalized)
@@ -287,7 +287,7 @@ export async function POST(req: Request) {
         link: p.link,
         brand: p.brand,
         keywords: p.keywords,
-        area: p.area,
+        type: p.type,
       })),
       extractedCodes,
       foundCodes: exactMatches.map((p) => p.code),
