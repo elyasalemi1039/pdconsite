@@ -46,6 +46,7 @@ export default function CreateProductForm() {
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState<Set<string>>(new Set());
 
   const updateForm = (id: string, updates: Partial<ProductForm>) => {
     setForms((prev) =>
@@ -81,11 +82,22 @@ export default function CreateProductForm() {
     setForms((prev) => prev.filter((form) => form.id !== id));
   };
 
+  const toggleAdvanced = (id: string) => {
+    setShowAdvanced((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
 
-    // Validate all forms
     for (const form of forms) {
       if (!form.code.trim()) {
         setError("Product code is required for all products.");
@@ -105,7 +117,6 @@ export default function CreateProductForm() {
     setProgress({ current: 0, total: forms.length });
 
     try {
-      // Prepare all form data in parallel (compress images)
       const preparedForms = await Promise.all(
         forms.map(async (form) => {
           let compressedFile: File | Blob | null = null;
@@ -136,7 +147,6 @@ export default function CreateProductForm() {
         })
       );
 
-      // Upload all products in parallel (batch of 3 at a time for efficiency)
       const batchSize = 3;
       const results: { success: boolean; error?: string }[] = [];
 
@@ -166,7 +176,6 @@ export default function CreateProductForm() {
         setProgress({ current: Math.min(i + batchSize, preparedForms.length), total: forms.length });
       }
 
-      // Check for errors
       const errors = results.filter((r) => !r.success);
       if (errors.length > 0) {
         setError(`Failed to create ${errors.length} product(s): ${errors[0].error}`);
@@ -174,14 +183,9 @@ export default function CreateProductForm() {
         return;
       }
 
-      // Success - redirect to admin with toast
-      toast.success(`${forms.length} product(s) added successfully!`, {
-        duration: 4000,
+      toast.success(`${forms.length} product(s) added!`, {
+        duration: 3000,
         position: "bottom-right",
-        style: {
-          background: "#10b981",
-          color: "#fff",
-        },
       });
 
       setTimeout(() => {
@@ -196,187 +200,136 @@ export default function CreateProductForm() {
   return (
     <>
       <Toaster />
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4">
         {forms.map((form, index) => (
           <div
             key={form.id}
-            className="bg-white border border-slate-200 rounded-lg shadow-sm p-6 space-y-6"
+            className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden"
           >
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900">
-                Product {index + 1}
-              </h3>
-              {forms.length > 1 && (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => removeForm(form.id)}
-                >
-                  Remove
-                </Button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-[1fr,280px] gap-6">
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium text-slate-700">
-                      Code<span className="text-red-600">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      value={form.code}
-                      onChange={(e) =>
-                        updateForm(form.id, { code: e.target.value.toUpperCase() })
-                      }
-                      placeholder="e.g. A001"
-                      required
+            {/* Main Row - Always Visible */}
+            <div className="p-4 flex flex-wrap items-start gap-4">
+              {/* Image Upload */}
+              <div className="w-24 h-24 flex-shrink-0">
+                <label className="block w-full h-full border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-amber-400 overflow-hidden bg-slate-50">
+                  {form.imagePreview ? (
+                    <img
+                      src={form.imagePreview}
+                      alt="Preview"
+                      className="w-full h-full object-contain"
                     />
-                  </div>
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                      <span className="text-2xl">📷</span>
+                      <span className="text-xs">Image</span>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      updateForm(form.id, {
+                        imageFile: file,
+                        imagePreview: file ? URL.createObjectURL(file) : null,
+                      });
+                    }}
+                  />
+                </label>
+              </div>
 
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium text-slate-700">
-                      Brand
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      value={form.brand}
-                      onChange={(e) =>
-                        updateForm(form.id, { brand: e.target.value })
-                      }
-                      placeholder="e.g. Samsung, Bosch"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Area<span className="text-red-600">*</span>
-                  </label>
+              {/* Core Fields */}
+              <div className="flex-1 min-w-[280px] space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    value={form.code}
+                    onChange={(e) => updateForm(form.id, { code: e.target.value.toUpperCase() })}
+                    placeholder="Product Code *"
+                    required
+                  />
                   <select
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white"
+                    className="w-36 rounded border border-slate-300 px-2 py-2 text-sm bg-white focus:ring-2 focus:ring-amber-500"
                     value={form.areaId}
-                    onChange={(e) =>
-                      updateForm(form.id, { areaId: e.target.value })
-                    }
+                    onChange={(e) => updateForm(form.id, { areaId: e.target.value })}
                     required
                   >
-                    <option value="">Select area</option>
+                    <option value="">Area *</option>
                     {areas.map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.name}
-                      </option>
+                      <option key={opt.id} value={opt.id}>{opt.name}</option>
                     ))}
                   </select>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Description<span className="text-red-600">*</span>
-                  </label>
-                  <textarea
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                    rows={2}
-                    value={form.description}
-                    onChange={(e) =>
-                      updateForm(form.id, { description: e.target.value })
-                    }
-                    required
-                  />
-                </div>
+                <input
+                  type="text"
+                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  value={form.description}
+                  onChange={(e) => updateForm(form.id, { description: e.target.value })}
+                  placeholder="Description *"
+                  required
+                />
 
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Keywords
-                  </label>
+                <div className="flex gap-2">
                   <input
                     type="text"
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500"
+                    value={form.brand}
+                    onChange={(e) => updateForm(form.id, { brand: e.target.value })}
+                    placeholder="Brand"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleAdvanced(form.id)}
+                    className="px-3 py-2 text-xs text-slate-500 hover:text-slate-700 border border-slate-300 rounded bg-slate-50"
+                  >
+                    {showAdvanced.has(form.id) ? "Less ▲" : "More ▼"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Remove Button */}
+              {forms.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeForm(form.id)}
+                  className="text-red-500 hover:text-red-700 text-lg p-1"
+                  title="Remove"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Advanced Fields */}
+            {showAdvanced.has(form.id) && (
+              <div className="border-t border-slate-100 bg-slate-50 p-4 space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    className="rounded border border-slate-300 px-3 py-2 text-sm bg-white"
                     value={form.keywords}
-                    onChange={(e) =>
-                      updateForm(form.id, { keywords: e.target.value })
-                    }
-                    placeholder="e.g. oven, stove, black, modern"
+                    onChange={(e) => updateForm(form.id, { keywords: e.target.value })}
+                    placeholder="Keywords (comma-separated)"
                   />
-                  <p className="text-xs text-slate-500">
-                    Comma-separated keywords for search
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Product Details
-                  </label>
-                  <textarea
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                    rows={2}
-                    value={form.productDetails}
-                    onChange={(e) =>
-                      updateForm(form.id, { productDetails: e.target.value })
-                    }
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Product Link
-                  </label>
                   <input
                     type="url"
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    className="rounded border border-slate-300 px-3 py-2 text-sm bg-white"
                     value={form.link}
-                    onChange={(e) =>
-                      updateForm(form.id, { link: e.target.value })
-                    }
-                    placeholder="https://..."
+                    onChange={(e) => updateForm(form.id, { link: e.target.value })}
+                    placeholder="Product Link URL"
                   />
                 </div>
+                <textarea
+                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm bg-white"
+                  rows={2}
+                  value={form.productDetails}
+                  onChange={(e) => updateForm(form.id, { productDetails: e.target.value })}
+                  placeholder="Product Details..."
+                />
               </div>
-
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Image
-                  </label>
-                  <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 flex flex-col items-center justify-center gap-2 bg-slate-50">
-                    {form.imagePreview ? (
-                      <div className="relative w-full max-w-[160px] aspect-[4/3] bg-slate-200 rounded-md overflow-hidden">
-                        <img
-                          src={form.imagePreview}
-                          alt="Preview"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="text-center">
-                        <p className="text-sm text-slate-500">
-                          Upload product image
-                        </p>
-                        <p className="text-xs text-slate-400 mt-1">
-                          Optional - defaults to placeholder
-                        </p>
-                      </div>
-                    )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] ?? null;
-                        updateForm(form.id, {
-                          imageFile: file,
-                          imagePreview: file ? URL.createObjectURL(file) : null,
-                        });
-                      }}
-                      className="w-full text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         ))}
 
@@ -386,19 +339,19 @@ export default function CreateProductForm() {
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row gap-3 items-center">
+        <div className="flex gap-3">
           <Button
             type="button"
             variant="outline"
             onClick={addForm}
             disabled={saving}
           >
-            + Add Another Product
+            + Add Another
           </Button>
           <Button type="submit" disabled={saving}>
             {saving 
-              ? `Adding ${progress.current}/${progress.total}...` 
-              : `Add ${forms.length} Product${forms.length > 1 ? 's' : ''} to System`}
+              ? `Saving ${progress.current}/${progress.total}...` 
+              : `Save ${forms.length} Product${forms.length > 1 ? 's' : ''}`}
           </Button>
         </div>
       </form>

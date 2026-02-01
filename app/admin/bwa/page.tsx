@@ -34,22 +34,24 @@ export default function ProductImportPage() {
   const [saving, setSaving] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [areas, setAreas] = useState<Area[]>([]);
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [bulkArea, setBulkArea] = useState<string>("");
 
   useEffect(() => {
-    // Fetch areas from database
     fetch("/api/admin/areas")
       .then((res) => res.json())
       .then((data) => {
         if (data.areas) {
           setAreas(data.areas);
+          if (data.areas.length > 0) {
+            setBulkArea(data.areas[0].name);
+          }
         }
       })
       .catch(() => toast.error("Failed to load areas"));
 
-    // Fetch suppliers
     fetch("/api/admin/suppliers")
       .then((res) => res.json())
       .then((data) => {
@@ -80,19 +82,19 @@ export default function ProductImportPage() {
       if (!res.ok) {
         toast.error(data?.error || "Failed to extract");
       } else {
-        const imported =
-          (data.rows || []).map((r: any) => ({
-            id: crypto.randomUUID(),
-            code: r.code || "",
-            name: r.name || r.description || "",
-            imageBase64: r.imageBase64 || null,
-            brand: r.brand || "",
-            keywords: r.keywords || "",
-            link: r.link || "",
-            productDetails: r.productDetails || "",
-            area: r.area || areas[0]?.name || "Kitchen",
-            price: r.price || "",
-          })) || [];
+        const defaultArea = bulkArea || areas[0]?.name || "Kitchen";
+        const imported = (data.rows || []).map((r: any) => ({
+          id: crypto.randomUUID(),
+          code: r.code || "",
+          name: r.name || r.description || "",
+          imageBase64: r.imageBase64 || null,
+          brand: r.brand || "",
+          keywords: r.keywords || "",
+          link: r.link || "",
+          productDetails: r.productDetails || "",
+          area: r.area || defaultArea,
+          price: r.price || "",
+        }));
         if (imported.length === 0) {
           toast.error("No products detected in file.");
         } else {
@@ -115,9 +117,14 @@ export default function ProductImportPage() {
     setRows((prev) => prev.filter((r) => r.id !== id));
   };
 
+  const applyBulkArea = () => {
+    if (!bulkArea) return;
+    setRows((prev) => prev.map((r) => ({ ...r, area: bulkArea })));
+    toast.success(`Set all products to "${bulkArea}"`);
+  };
+
   const handleImport = async () => {
     const validRows = rows.filter((r) => r.code.trim());
-
     if (validRows.length === 0) {
       toast.error("No valid products to import");
       return;
@@ -128,7 +135,6 @@ export default function ProductImportPage() {
     let errorCount = 0;
     let skippedCount = 0;
 
-    // Process in batches of 15 for speed
     const batchSize = 15;
     for (let i = 0; i < validRows.length; i += batchSize) {
       const batch = validRows.slice(i, i + batchSize);
@@ -138,7 +144,7 @@ export default function ProductImportPage() {
           try {
             const formData = new FormData();
             formData.append("code", r.code.trim());
-            formData.append("areaId", ""); // Will be created/found by areaName
+            formData.append("areaId", "");
             formData.append("description", r.name.trim() || r.code.trim());
             formData.append("productDetails", r.productDetails.trim());
             formData.append("link", r.link.trim());
@@ -146,7 +152,6 @@ export default function ProductImportPage() {
             formData.append("keywords", r.keywords.trim());
             formData.append("areaName", r.area);
 
-            // If we have base64 image, convert to blob and append
             if (r.imageBase64) {
               const byteString = atob(r.imageBase64);
               const ab = new ArrayBuffer(byteString.length);
@@ -165,17 +170,13 @@ export default function ProductImportPage() {
 
             if (!res.ok) {
               const data = await res.json();
-              // Check if it's a duplicate error
               if (data?.error?.includes("already exists")) {
-                console.log(`Skipping duplicate ${r.code}`);
                 return "skipped";
               }
-              console.error(`Failed to import ${r.code}:`, data?.error);
               return "error";
             }
             return "success";
-          } catch (err) {
-            console.error(`Error importing ${r.code}:`, err);
+          } catch {
             return "error";
           }
         })
@@ -189,15 +190,9 @@ export default function ProductImportPage() {
     setSaving(false);
 
     const messages = [];
-    if (successCount > 0) {
-      messages.push(`✓ Imported ${successCount} products`);
-    }
-    if (skippedCount > 0) {
-      messages.push(`⊘ Skipped ${skippedCount} duplicates`);
-    }
-    if (errorCount > 0) {
-      messages.push(`✗ ${errorCount} failed`);
-    }
+    if (successCount > 0) messages.push(`✓ ${successCount} imported`);
+    if (skippedCount > 0) messages.push(`⊘ ${skippedCount} duplicates`);
+    if (errorCount > 0) messages.push(`✗ ${errorCount} failed`);
 
     if (messages.length > 0) {
       if (errorCount > 0) {
@@ -211,246 +206,202 @@ export default function ProductImportPage() {
   const selectedSupplier = suppliers.find((s) => s.id === selectedSupplierId);
 
   return (
-    <main className="min-h-screen bg-slate-50 py-16 px-4">
+    <main className="min-h-screen bg-slate-50 py-8 px-4">
       <Toaster />
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-4">
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Product Import</h1>
-            <p className="text-sm text-slate-600">
-              Upload a supplier PDF/DOCX to extract products with images
-            </p>
+            <p className="text-sm text-slate-500">Upload supplier files to extract products</p>
           </div>
-          <a href="/admin" className="text-sm text-blue-600 hover:underline">
-            ← Back to Admin
-          </a>
+          <a href="/admin" className="text-sm text-blue-600 hover:underline">← Back</a>
         </div>
 
-        {/* Supplier Selection */}
-        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            1. Select Supplier
-          </label>
-          {suppliers.length === 0 ? (
-            <div className="text-sm text-slate-500">
-              No suppliers configured.{" "}
-              <a href="/admin/suppliers" className="text-blue-600 hover:underline">
-                Add a supplier first
+        {/* Setup Row */}
+        <div className="bg-white border border-slate-200 rounded-lg p-4 flex flex-wrap items-end gap-4">
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-xs font-medium text-slate-600 mb-1">Supplier</label>
+            {suppliers.length === 0 ? (
+              <a href="/admin/suppliers" className="text-sm text-blue-600 hover:underline">
+                + Add a supplier first
               </a>
-            </div>
-          ) : (
-            <select
-              value={selectedSupplierId}
-              onChange={(e) => setSelectedSupplierId(e.target.value)}
-              className="w-full max-w-md px-3 py-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-            >
-              <option value="">-- Select a supplier --</option>
-              {suppliers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          )}
-          {selectedSupplier && (
-            <div className="mt-3 text-xs text-slate-500">
-              Column mapping:{" "}
-              {selectedSupplier.columnMappings
-                .map((m) => `Col ${m.column} → ${m.field}`)
-                .join(", ")}
-            </div>
-          )}
-        </div>
-
-        {/* File Upload */}
-        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4 space-y-4">
-          <div className="flex items-center gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                2. Upload PDF or DOCX
-              </label>
-              <input
-                type="file"
-                accept="application/pdf,.docx"
-                disabled={!selectedSupplierId}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFile(file);
-                }}
-                className="text-sm disabled:opacity-50"
-              />
-            </div>
-            {extracting && <span className="text-sm text-slate-500">Extracting...</span>}
+            ) : (
+              <select
+                value={selectedSupplierId}
+                onChange={(e) => setSelectedSupplierId(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm"
+              >
+                <option value="">Select supplier...</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            )}
           </div>
-          {!selectedSupplierId && (
-            <p className="text-xs text-amber-600">Select a supplier first to enable upload</p>
-          )}
+          
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Upload File</label>
+            <input
+              type="file"
+              accept="application/pdf,.docx"
+              disabled={!selectedSupplierId || extracting}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFile(file);
+              }}
+              className="text-sm file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-amber-500 file:text-white file:text-sm file:cursor-pointer disabled:opacity-50"
+            />
+          </div>
+          
+          {extracting && <span className="text-sm text-slate-500 animate-pulse">Extracting...</span>}
         </div>
 
+        {selectedSupplier && (
+          <p className="text-xs text-slate-400">
+            Columns: {selectedSupplier.columnMappings.map((m) => `${m.column}→${m.field}`).join(", ")}
+          </p>
+        )}
+
+        {/* Products List */}
         {rows.length > 0 && (
-          <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-800">
-                Extracted Products ({rows.length})
-              </h2>
+          <div className="space-y-3">
+            {/* Bulk Actions */}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex flex-wrap items-center gap-3">
+              <span className="text-sm font-medium text-amber-800">Bulk:</span>
+              <select
+                value={bulkArea}
+                onChange={(e) => setBulkArea(e.target.value)}
+                className="px-2 py-1 border border-amber-300 rounded bg-white text-sm"
+              >
+                {areas.map((a) => (
+                  <option key={a.id} value={a.name}>{a.name}</option>
+                ))}
+              </select>
               <button
                 type="button"
-                className="px-4 py-2 rounded-md bg-amber-500 text-white text-sm font-semibold disabled:opacity-60"
+                onClick={applyBulkArea}
+                className="px-3 py-1 bg-amber-500 text-white text-sm rounded hover:bg-amber-600"
+              >
+                Apply to All
+              </button>
+              <div className="flex-1" />
+              <span className="text-sm text-slate-600">{rows.length} products</span>
+              <button
+                type="button"
                 onClick={handleImport}
                 disabled={saving}
+                className="px-4 py-1.5 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 disabled:opacity-50"
               >
-                {saving ? "Importing..." : `Import ${rows.length} Products`}
+                {saving ? "Importing..." : "Import All"}
               </button>
             </div>
 
-            <div className="space-y-3 max-h-[600px] overflow-y-auto">
+            {/* Product Cards */}
+            <div className="space-y-2">
               {rows.map((r) => {
-                const isExpanded = expandedRows.has(r.id);
+                const isEditing = editingId === r.id;
+                
                 return (
                   <div
                     key={r.id}
-                    className="border border-slate-200 rounded-lg bg-slate-50 overflow-hidden"
+                    className="bg-white border border-slate-200 rounded-lg overflow-hidden"
                   >
-                    {/* Collapsed View */}
-                    <div className="flex items-center gap-4 p-3">
-                      {/* Image Preview */}
-                      <div className="w-16 h-16 flex-shrink-0 bg-white border border-slate-200 rounded overflow-hidden">
+                    <div className="flex items-center gap-3 p-3">
+                      {/* Image */}
+                      <div className="w-14 h-14 flex-shrink-0 bg-slate-100 border border-slate-200 rounded overflow-hidden">
                         <img
                           src={r.imageBase64 ? `data:image/png;base64,${r.imageBase64}` : "/no-image.png"}
                           alt={r.code}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain"
                         />
                       </div>
 
-                      {/* Basic Info */}
-                      <div className="flex-1">
-                        <div className="font-semibold text-slate-800">{r.code}</div>
-                        <div className="text-sm text-slate-600 line-clamp-1">{r.name}</div>
-                        {r.price && (
-                          <div className="text-xs text-green-600">${r.price}</div>
+                      {/* Code & Name */}
+                      <div className="flex-1 min-w-0">
+                        {isEditing ? (
+                          <input
+                            className="w-full font-semibold text-slate-800 bg-slate-50 border border-slate-300 rounded px-2 py-1 text-sm mb-1"
+                            value={r.code}
+                            onChange={(e) => update(r.id, "code", e.target.value.toUpperCase())}
+                            placeholder="Code"
+                          />
+                        ) : (
+                          <div className="font-semibold text-slate-800 truncate">{r.code}</div>
+                        )}
+                        {isEditing ? (
+                          <input
+                            className="w-full text-slate-600 bg-slate-50 border border-slate-300 rounded px-2 py-1 text-sm"
+                            value={r.name}
+                            onChange={(e) => update(r.id, "name", e.target.value)}
+                            placeholder="Description"
+                          />
+                        ) : (
+                          <div className="text-sm text-slate-500 truncate">{r.name}</div>
                         )}
                       </div>
 
-                      {/* Action Buttons */}
-                      <div className="flex items-center gap-2">
+                      {/* Area Dropdown - Always Visible */}
+                      <select
+                        value={r.area}
+                        onChange={(e) => update(r.id, "area", e.target.value)}
+                        className="px-2 py-1.5 border border-slate-300 rounded bg-white text-sm min-w-[120px]"
+                      >
+                        {areas.map((a) => (
+                          <option key={a.id} value={a.name}>{a.name}</option>
+                        ))}
+                      </select>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          className="px-3 py-1 text-xs rounded border border-slate-300 hover:bg-white"
-                          onClick={() => {
-                            setExpandedRows(prev => {
-                              // Close all others and open this one, or close this one if already open
-                              const newSet = new Set<string>();
-                              if (!prev.has(r.id)) {
-                                newSet.add(r.id);
-                              }
-                              return newSet;
-                            });
-                          }}
+                          onClick={() => setEditingId(isEditing ? null : r.id)}
+                          className={`px-2 py-1 text-xs rounded ${
+                            isEditing 
+                              ? "bg-green-100 text-green-700" 
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
                         >
-                          {isExpanded ? "Collapse" : "Edit Details"}
+                          {isEditing ? "Done" : "Edit"}
                         </button>
                         <button
                           type="button"
-                          className="text-red-500 text-sm hover:underline"
                           onClick={() => removeRow(r.id)}
+                          className="px-2 py-1 text-xs rounded bg-red-50 text-red-600 hover:bg-red-100"
                         >
-                          Remove
+                          ✕
                         </button>
                       </div>
                     </div>
 
-                    {/* Expanded View */}
-                    {isExpanded && (
-                      <div className="border-t border-slate-200 p-4 bg-white space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                              Code *
-                            </label>
-                            <input
-                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                              value={r.code}
-                              onChange={(e) => update(r.id, "code", e.target.value.toUpperCase())}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                              Brand
-                            </label>
-                            <input
-                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                              value={r.brand}
-                              onChange={(e) => update(r.id, "brand", e.target.value)}
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">
-                            Name / Description *
-                          </label>
-                          <input
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                            value={r.name}
-                            onChange={(e) => update(r.id, "name", e.target.value)}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                              Area
-                            </label>
-                            <select
-                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm bg-white"
-                              value={r.area}
-                              onChange={(e) => update(r.id, "area", e.target.value)}
-                            >
-                              {areas.map((area) => (
-                                <option key={area.id} value={area.name}>
-                                  {area.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-1">
-                              Product Link
-                            </label>
-                            <input
-                              type="url"
-                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                              value={r.link}
-                              onChange={(e) => update(r.id, "link", e.target.value)}
-                              placeholder="https://..."
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">
-                            Keywords (comma-separated)
-                          </label>
-                          <input
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                            value={r.keywords}
-                            onChange={(e) => update(r.id, "keywords", e.target.value)}
-                            placeholder="e.g. basin, sink, white, modern"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">
-                            Product Details
-                          </label>
-                          <textarea
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
-                            rows={2}
-                            value={r.productDetails}
-                            onChange={(e) => update(r.id, "productDetails", e.target.value)}
-                            placeholder="Additional product details..."
-                          />
-                        </div>
+                    {/* Expanded Edit */}
+                    {isEditing && (
+                      <div className="border-t border-slate-100 bg-slate-50 p-3 grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <input
+                          className="px-2 py-1.5 border border-slate-300 rounded text-sm bg-white"
+                          value={r.brand}
+                          onChange={(e) => update(r.id, "brand", e.target.value)}
+                          placeholder="Brand"
+                        />
+                        <input
+                          className="px-2 py-1.5 border border-slate-300 rounded text-sm bg-white"
+                          value={r.keywords}
+                          onChange={(e) => update(r.id, "keywords", e.target.value)}
+                          placeholder="Keywords"
+                        />
+                        <input
+                          className="px-2 py-1.5 border border-slate-300 rounded text-sm bg-white"
+                          value={r.link}
+                          onChange={(e) => update(r.id, "link", e.target.value)}
+                          placeholder="Link URL"
+                        />
+                        <input
+                          className="px-2 py-1.5 border border-slate-300 rounded text-sm bg-white col-span-2 md:col-span-1"
+                          value={r.productDetails}
+                          onChange={(e) => update(r.id, "productDetails", e.target.value)}
+                          placeholder="Details"
+                        />
                       </div>
                     )}
                   </div>
@@ -460,18 +411,15 @@ export default function ProductImportPage() {
           </div>
         )}
 
+        {/* Empty State */}
         {rows.length === 0 && !extracting && (
-          <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-8 text-center text-slate-500">
-            {suppliers.length === 0 ? (
-              <div>
-                <p className="mb-2">No suppliers configured yet</p>
-                <a href="/admin/suppliers" className="text-blue-600 hover:underline">
-                  Add a supplier to get started
-                </a>
-              </div>
-            ) : (
-              "Select a supplier and upload a PDF or DOCX file to get started"
-            )}
+          <div className="bg-white border border-slate-200 rounded-lg p-12 text-center">
+            <div className="text-4xl mb-3">📄</div>
+            <p className="text-slate-500">
+              {suppliers.length === 0 
+                ? "Add a supplier to get started" 
+                : "Select a supplier and upload a file"}
+            </p>
           </div>
         )}
       </div>
