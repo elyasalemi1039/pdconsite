@@ -37,7 +37,7 @@ export default async function AdminPage() {
             <span className="text-xl">📦</span>
             <h2 className="text-lg font-semibold text-slate-900">Products</h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <Link href="/admin/create-product" className="w-full">
               <Button variant="outline" className="w-full">Create Product</Button>
             </Link>
@@ -46,6 +46,9 @@ export default async function AdminPage() {
             </Link>
             <Link href="/admin/areas" className="w-full">
               <Button variant="outline" className="w-full">Manage Areas</Button>
+            </Link>
+            <Link href="/admin/suppliers" className="w-full">
+              <Button variant="outline" className="w-full">Manage Suppliers</Button>
             </Link>
           </div>
         </div>
@@ -65,24 +68,7 @@ export default async function AdminPage() {
             </Link>
           </div>
         </div>
-
-        {/* Import Section */}
-        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6 space-y-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">📥</span>
-            <h2 className="text-lg font-semibold text-slate-900">Import</h2>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Link href="/admin/bwa" className="w-full">
-              <Button variant="outline" className="w-full">Product Import</Button>
-            </Link>
-            <Link href="/admin/suppliers" className="w-full">
-              <Button variant="outline" className="w-full">Manage Suppliers</Button>
-            </Link>
-          </div>
-        </div>
       </div>
     </main>
   );
 }
-

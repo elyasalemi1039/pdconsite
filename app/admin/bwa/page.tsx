@@ -215,7 +215,7 @@ export default function ProductImportPage() {
             <h1 className="text-2xl font-semibold text-slate-900">Product Import</h1>
             <p className="text-sm text-slate-500">Upload supplier files to extract products</p>
           </div>
-          <a href="/admin" className="text-sm text-blue-600 hover:underline">← Back</a>
+          <a href="/admin" className="text-sm text-blue-600 hover:underline">← Back to Admin</a>
         </div>
 
         {/* Setup Row */}
