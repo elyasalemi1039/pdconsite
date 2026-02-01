@@ -892,7 +892,7 @@ export default function ProductSheetApp() {
               {filteredTypeNames.map((typeName) => {
                 const isExpanded = expandedAreas.has(typeName);
                 const typeProducts = productsByType[typeName] || [];
-                const selectedInType = typeProducts.filter((p) =>
+                const selectedInTypeCount = typeProducts.filter((p) =>
                   selected.some((s) => s.id === p.id)
                 ).length;
 
@@ -917,9 +917,9 @@ export default function ProductSheetApp() {
                         <span className="text-slate-900 font-medium">{typeName}</span>
                         <span className="text-sm text-slate-500">({typeProducts.length} products)</span>
                       </div>
-                      {selectedInType.length > 0 && (
+                      {selectedInTypeCount > 0 && (
                         <span className="bg-amber-500 text-white text-xs font-bold px-2 py-1 rounded">
-                          {selectedInType.length} selected
+                          {selectedInTypeCount} selected
                         </span>
                       )}
                     </button>
