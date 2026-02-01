@@ -35,11 +35,14 @@ export default function ProductImportPage() {
   const [extracting, setExtracting] = useState(false);
   const [productTypes, setProductTypes] = useState<ProductType[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(true);
+  const [loadingTypes, setLoadingTypes] = useState(true);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [bulkType, setBulkType] = useState<string>("");
 
   useEffect(() => {
+    setLoadingTypes(true);
     fetch("/api/admin/product-types")
       .then((res) => res.json())
       .then((data) => {
@@ -50,8 +53,10 @@ export default function ProductImportPage() {
           }
         }
       })
-      .catch(() => toast.error("Failed to load product types"));
+      .catch(() => toast.error("Failed to load product types"))
+      .finally(() => setLoadingTypes(false));
 
+    setLoadingSuppliers(true);
     fetch("/api/admin/suppliers")
       .then((res) => res.json())
       .then((data) => {
@@ -59,7 +64,8 @@ export default function ProductImportPage() {
           setSuppliers(data.suppliers);
         }
       })
-      .catch(() => toast.error("Failed to load suppliers"));
+      .catch(() => toast.error("Failed to load suppliers"))
+      .finally(() => setLoadingSuppliers(false));
   }, []);
 
   const handleFile = async (file: File) => {
@@ -221,7 +227,9 @@ export default function ProductImportPage() {
         <div className="bg-white border border-slate-200 rounded-lg p-4 flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[200px]">
             <label className="block text-xs font-medium text-slate-600 mb-1">Supplier</label>
-            {suppliers.length === 0 ? (
+            {loadingSuppliers ? (
+              <div className="w-full h-10 bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 animate-pulse rounded-lg" />
+            ) : suppliers.length === 0 ? (
               <a href="/admin/suppliers" className="text-sm text-blue-600 hover:underline">
                 + Add a supplier first
               </a>
@@ -421,18 +429,27 @@ export default function ProductImportPage() {
         {/* Empty State */}
         {rows.length === 0 && !extracting && (
           <div className="bg-white border border-slate-200 rounded-lg p-12 text-center">
-            <div className="text-4xl mb-3">📄</div>
-            <p className="text-slate-500">
-              {suppliers.length === 0 
-                ? "Add a supplier to get started" 
-                : productTypes.length === 0 
-                ? "Add product types first (e.g. Basin, Tap, Toilet)"
-                : "Select a supplier and upload a file"}
-            </p>
-            {productTypes.length === 0 && (
-              <a href="/admin/product-types" className="text-sm text-blue-600 hover:underline mt-2 inline-block">
-                → Manage Product Types
-              </a>
+            {loadingSuppliers || loadingTypes ? (
+              <div className="space-y-3">
+                <div className="h-6 w-32 mx-auto bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 animate-pulse rounded" />
+                <div className="h-4 w-48 mx-auto bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 animate-pulse rounded" />
+              </div>
+            ) : (
+              <>
+                <div className="text-4xl mb-3">📄</div>
+                <p className="text-slate-500">
+                  {suppliers.length === 0 
+                    ? "Add a supplier to get started" 
+                    : productTypes.length === 0 
+                    ? "Add product types first (e.g. Basin, Tap, Toilet)"
+                    : "Select a supplier and upload a file"}
+                </p>
+                {productTypes.length === 0 && (
+                  <a href="/admin/product-types" className="text-sm text-blue-600 hover:underline mt-2 inline-block">
+                    → Manage Product Types
+                  </a>
+                )}
+              </>
             )}
           </div>
         )}

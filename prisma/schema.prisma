@@ -25,12 +25,12 @@ model Asset {
 }
 
 model Product {
-  id             String       @id @default(uuid())
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  code           String       @unique
-  typeId         String
-  type           ProductType  @relation(fields: [typeId], references: [id])
+  id             String        @id @default(uuid())
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  code           String        @unique
+  typeId         String?
+  type           ProductType?  @relation(fields: [typeId], references: [id])
   description    String
   productDetails String?
   imageUrl       String
@@ -61,12 +61,11 @@ model SavedSelection {
   name         String   // Display name for the selection
   address      String
   date         String
-  areaId       String?  // Optional area for the selection
   contactName  String?
   company      String?
   phoneNumber  String?
   email        String?
-  products     Json     // Array of selected products with quantities and notes
+  products     Json     // Array of selected products with quantities, notes, and per-product area
   status       String   @default("draft") // draft, completed
 }
 

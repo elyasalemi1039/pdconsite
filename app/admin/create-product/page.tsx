@@ -21,7 +21,7 @@ export default async function CreateProductPage() {
           </div>
           <div className="flex gap-2">
             <Link href="/admin/bwa">
-              <Button variant="outline" className="gap-1">
+              <Button className="gap-1 bg-amber-500 hover:bg-amber-600 text-white animate-pulse">
                 📥 Import from Supplier
               </Button>
             </Link>

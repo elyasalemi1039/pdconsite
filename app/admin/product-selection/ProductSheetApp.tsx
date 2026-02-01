@@ -30,6 +30,8 @@ type SelectedProduct = {
   quantity: string;
   notes: string;
   link: string | null;
+  areaId: string;
+  areaName: string;
 };
 
 type Message = { type: "success" | "error" | "info"; text: string };
@@ -54,7 +56,6 @@ export default function ProductSheetApp() {
 
   const [address, setAddress] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [selectedAreaId, setSelectedAreaId] = useState("");
   const [areas, setAreas] = useState<Area[]>([]);
   const [contactName, setContactName] = useState("");
   const [company, setCompany] = useState("");
@@ -269,8 +270,8 @@ export default function ProductSheetApp() {
         const brandMatch = p.brand?.toLowerCase().includes(q) || false;
         const keywordsMatch = p.keywords?.toLowerCase().includes(q) || false;
         const detailsMatch = p.productDetails?.toLowerCase().includes(q) || false;
-        const areaMatch = p.area?.name.toLowerCase().includes(q) || false;
-        return codeMatch || descMatch || brandMatch || keywordsMatch || detailsMatch || areaMatch;
+        const typeMatch = p.type?.name.toLowerCase().includes(q) || false;
+        return codeMatch || descMatch || brandMatch || keywordsMatch || detailsMatch || typeMatch;
       });
     }
 
@@ -316,6 +317,8 @@ export default function ProductSheetApp() {
           quantity: "",
           notes: "",
           link: p.link,
+          areaId: "",
+          areaName: "",
         },
       ];
     });
@@ -331,6 +334,15 @@ export default function ProductSheetApp() {
     value: string
   ) => {
     setSelected((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
+  };
+
+  const updateSelectedArea = (id: string, areaId: string) => {
+    const area = areas.find((a) => a.id === areaId);
+    setSelected((prev) =>
+      prev.map((s) =>
+        s.id === id ? { ...s, areaId, areaName: area?.name || "" } : s
+      )
+    );
   };
 
   // PDF Upload Handler
@@ -446,12 +458,14 @@ export default function ProductSheetApp() {
   const validate = () => {
     if (!address.trim()) return "Address is required";
     if (selected.length === 0) return "Select at least one product";
+    const missingArea = selected.find((p) => !p.areaId);
+    if (missingArea) return `Please select an area for product: ${missingArea.code}`;
     return null;
   };
 
   const buildPayloadProducts = () =>
     selected.map((p) => ({
-      category: p.typeName,
+      category: p.areaName, // Group by area, not type
       code: p.code,
       description: p.description,
       productDetails: p.productDetails,
@@ -728,7 +742,7 @@ export default function ProductSheetApp() {
         {/* Document Details */}
         <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">📄 Document Details</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Address *</label>
               <input
@@ -737,20 +751,6 @@ export default function ProductSheetApp() {
                 placeholder="Property address"
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Area *</label>
-              <select
-                value={selectedAreaId}
-                onChange={(e) => setSelectedAreaId(e.target.value)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                required
-              >
-                <option value="">Select area...</option>
-                {areas.map((area) => (
-                  <option key={area.id} value={area.id}>{area.name}</option>
-                ))}
-              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
@@ -1054,8 +1054,23 @@ export default function ProductSheetApp() {
                     </button>
                   </div>
 
-                  {/* Qty and Notes */}
-                  <div className="mt-3 grid grid-cols-[80px_1fr] gap-3">
+                  {/* Area, Qty and Notes */}
+                  <div className="mt-3 grid grid-cols-[1fr_80px_1fr] gap-3">
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">Area *</label>
+                      <select
+                        value={item.areaId}
+                        onChange={(e) => updateSelectedArea(item.id, e.target.value)}
+                        className={`w-full rounded-md border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 ${
+                          !item.areaId ? "border-red-300 bg-red-50" : "border-slate-300"
+                        }`}
+                      >
+                        <option value="">Select area...</option>
+                        {areas.map((area) => (
+                          <option key={area.id} value={area.id}>{area.name}</option>
+                        ))}
+                      </select>
+                    </div>
                     <div>
                       <label className="block text-xs text-slate-500 mb-1">Qty</label>
                   <input

@@ -45,13 +45,15 @@ export async function POST(req: Request) {
     products: Array<{
       id: string;
       code: string;
-      areaName: string;
+      typeName: string;
       description: string;
       productDetails: string | null;
       imageUrl: string;
       quantity: string;
       notes: string;
       link: string | null;
+      areaId: string;
+      areaName: string;
     }>;
     status?: string;
   };
