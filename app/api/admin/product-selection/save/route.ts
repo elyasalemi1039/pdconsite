@@ -52,15 +52,10 @@ export async function POST(req: Request) {
 
   try {
     for (const raw of products as IncomingProduct[]) {
-      const areaName = (raw?.category || "Other").trim();
       const code = raw?.code?.trim();
       if (!code) {
         throw new Error("Product code is required for all rows.");
       }
-
-      const area =
-        (await prisma.area.findFirst({ where: { name: areaName } })) ||
-        (await prisma.area.create({ data: { name: areaName || "Other" } }));
 
       const description = raw?.description?.trim() || code;
       const productDetails = buildProductDetails(raw);
@@ -83,10 +78,10 @@ export async function POST(req: Request) {
         imageUrl = "https://placehold.co/600x600?text=No+Image";
       }
 
+      // Products are created without a type - can be categorized later
       const product = await prisma.product.create({
         data: {
           code,
-          areaId: area.id,
           description,
           productDetails,
           imageUrl,
