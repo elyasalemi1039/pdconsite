@@ -37,12 +37,15 @@ export default async function AdminPage() {
             <span className="text-xl">📦</span>
             <h2 className="text-lg font-semibold text-slate-900">Products</h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <Link href="/admin/create-product" className="w-full">
               <Button variant="outline" className="w-full">Create Product</Button>
             </Link>
             <Link href="/admin/view-products" className="w-full">
               <Button variant="outline" className="w-full">View Products</Button>
+            </Link>
+            <Link href="/admin/product-types" className="w-full">
+              <Button variant="outline" className="w-full">Manage Types</Button>
             </Link>
             <Link href="/admin/areas" className="w-full">
               <Button variant="outline" className="w-full">Manage Areas</Button>

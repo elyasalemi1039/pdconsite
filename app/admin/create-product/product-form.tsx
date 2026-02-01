@@ -7,7 +7,7 @@ import toast, { Toaster } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
 
-type Area = {
+type ProductType = {
   id: string;
   name: string;
 };
@@ -15,7 +15,7 @@ type Area = {
 type ProductForm = {
   id: string;
   code: string;
-  areaId: string;
+  typeId: string;
   description: string;
   productDetails: string;
   link: string;
@@ -28,7 +28,7 @@ type ProductForm = {
 const createEmptyForm = (): ProductForm => ({
   id: crypto.randomUUID(),
   code: "",
-  areaId: "",
+  typeId: "",
   description: "",
   productDetails: "",
   link: "",
@@ -40,8 +40,8 @@ const createEmptyForm = (): ProductForm => ({
 
 export default function CreateProductForm() {
   const router = useRouter();
-  const [areas, setAreas] = useState<Area[]>([]);
-  const [loadingAreas, setLoadingAreas] = useState(false);
+  const [productTypes, setProductTypes] = useState<ProductType[]>([]);
+  const [loadingTypes, setLoadingTypes] = useState(false);
   const [forms, setForms] = useState<ProductForm[]>([createEmptyForm()]);
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
@@ -59,19 +59,19 @@ export default function CreateProductForm() {
   };
 
   useEffect(() => {
-    const loadAreas = async () => {
-      setLoadingAreas(true);
+    const loadTypes = async () => {
+      setLoadingTypes(true);
       try {
-        const res = await fetch("/api/admin/areas", { cache: "no-store" });
+        const res = await fetch("/api/admin/product-types", { cache: "no-store" });
         const data = await res.json();
-        setAreas(data.areas || []);
+        setProductTypes(data.productTypes || []);
       } catch (err) {
-        setError("Failed to load areas. Create one in Admin > Areas.");
+        setError("Failed to load product types. Create one in Admin > Product Types.");
       } finally {
-        setLoadingAreas(false);
+        setLoadingTypes(false);
       }
     };
-    loadAreas();
+    loadTypes();
   }, []);
 
   const removeForm = (id: string) => {
@@ -107,8 +107,8 @@ export default function CreateProductForm() {
         setError("Description is required for all products.");
         return;
       }
-      if (!form.areaId) {
-        setError("Area is required for all products.");
+      if (!form.typeId) {
+        setError("Product type is required for all products.");
         return;
       }
     }
@@ -132,7 +132,7 @@ export default function CreateProductForm() {
 
           const formData = new FormData();
           formData.append("code", form.code.trim());
-          formData.append("areaId", form.areaId);
+          formData.append("typeId", form.typeId);
           formData.append("description", form.description.trim());
           formData.append("productDetails", form.productDetails.trim());
           formData.append("link", form.link.trim());
@@ -251,12 +251,12 @@ export default function CreateProductForm() {
                   />
                   <select
                     className="w-36 rounded border border-slate-300 px-2 py-2 text-sm bg-white focus:ring-2 focus:ring-amber-500"
-                    value={form.areaId}
-                    onChange={(e) => updateForm(form.id, { areaId: e.target.value })}
+                    value={form.typeId}
+                    onChange={(e) => updateForm(form.id, { typeId: e.target.value })}
                     required
                   >
-                    <option value="">Area *</option>
-                    {areas.map((opt) => (
+                    <option value="">Type *</option>
+                    {productTypes.map((opt) => (
                       <option key={opt.id} value={opt.id}>{opt.name}</option>
                     ))}
                   </select>

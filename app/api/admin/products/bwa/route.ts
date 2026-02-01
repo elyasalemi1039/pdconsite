@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const link = formData.get("link")?.toString() || "";
     const brand = formData.get("brand")?.toString() || "";
     const keywords = formData.get("keywords")?.toString() || "";
-    const areaName = formData.get("areaName")?.toString() || "Other";
+    const typeName = formData.get("typeName")?.toString() || "Other";
     const image = formData.get("image") as File | null;
 
     if (!code.trim()) {
@@ -26,10 +26,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Find or create the area
-    let area = await prisma.area.findFirst({ where: { name: areaName } });
-    if (!area) {
-      area = await prisma.area.create({ data: { name: areaName } });
+    // Find or create the product type
+    let productType = await prisma.productType.findFirst({ where: { name: typeName } });
+    if (!productType) {
+      productType = await prisma.productType.create({ data: { name: typeName } });
     }
 
     // Handle image upload
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     const product = await prisma.product.create({
       data: {
         code,
-        areaId: area.id,
+        typeId: productType.id,
         description: description || code,
         productDetails: productDetails || null,
         imageUrl,
@@ -68,12 +68,12 @@ export async function POST(request: Request) {
         brand: brand || null,
         keywords: keywords || null,
       },
-      include: { area: true },
+      include: { type: true },
     });
 
     return NextResponse.json({ product });
   } catch (error: any) {
-    console.error("Error creating BWA product:", error);
+    console.error("Error creating product:", error);
     return NextResponse.json(
       {
         error: "Failed to create product",
@@ -83,4 +83,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

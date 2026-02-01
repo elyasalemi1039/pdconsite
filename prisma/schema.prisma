@@ -25,12 +25,12 @@ model Asset {
 }
 
 model Product {
-  id             String   @id @default(uuid())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  code           String   @unique
-  areaId         String
-  area           Area     @relation(fields: [areaId], references: [id])
+  id             String       @id @default(uuid())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  code           String       @unique
+  typeId         String
+  type           ProductType  @relation(fields: [typeId], references: [id])
   description    String
   productDetails String?
   imageUrl       String
@@ -39,12 +39,19 @@ model Product {
   keywords       String?
 }
 
-model Area {
+model ProductType {
   id        String    @id @default(uuid())
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   name      String    @unique
   products  Product[]
+}
+
+model Area {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  name      String    @unique
 }
 
 model SavedSelection {
@@ -54,6 +61,7 @@ model SavedSelection {
   name         String   // Display name for the selection
   address      String
   date         String
+  areaId       String?  // Optional area for the selection
   contactName  String?
   company      String?
   phoneNumber  String?

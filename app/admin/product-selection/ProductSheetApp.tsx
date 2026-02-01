@@ -9,16 +9,21 @@ type ApiProduct = {
   description: string;
   productDetails: string | null;
   imageUrl: string;
-  area: { id: string; name: string };
+  type: { id: string; name: string };
   link: string | null;
   brand: string | null;
   keywords: string | null;
 };
 
+type Area = {
+  id: string;
+  name: string;
+};
+
 type SelectedProduct = {
   id: string;
   code: string;
-  areaName: string;
+  typeName: string;
   description: string;
   productDetails: string | null;
   imageUrl: string;
@@ -49,6 +54,8 @@ export default function ProductSheetApp() {
 
   const [address, setAddress] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedAreaId, setSelectedAreaId] = useState("");
+  const [areas, setAreas] = useState<Area[]>([]);
   const [contactName, setContactName] = useState("");
   const [company, setCompany] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -66,13 +73,13 @@ export default function ProductSheetApp() {
 
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedAreaFilter, setSelectedAreaFilter] = useState<string>("all");
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>("all");
   const [selectedBrandFilter, setSelectedBrandFilter] = useState<string>("all");
 
   // Auto-save debounce ref
   const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load all products on mount
+  // Load all products and areas on mount
   useEffect(() => {
     const loadAllProducts = async () => {
       setLoadingProducts(true);
@@ -96,6 +103,20 @@ export default function ProductSheetApp() {
       }
     };
     loadAllProducts();
+
+    // Load areas for selection
+    const loadAreas = async () => {
+      try {
+        const resp = await fetch("/api/admin/areas");
+        if (resp.ok) {
+          const data = await resp.json();
+          setAreas(data.areas || []);
+        }
+      } catch {
+        // Silently fail - areas are not critical
+      }
+    };
+    loadAreas();
   }, []);
 
   // Load saved selection if continuing
@@ -209,11 +230,11 @@ export default function ProductSheetApp() {
     };
   }, [address, date, contactName, company, phoneNumber, email, selected, saveSelection]);
 
-  // Get unique area names for filter
-  const areaNames = useMemo(() => {
-    const areas = new Set<string>();
-    allProducts.forEach((p) => areas.add(p.area?.name || "Other"));
-    return Array.from(areas).sort();
+  // Get unique type names for filter
+  const typeNames = useMemo(() => {
+    const types = new Set<string>();
+    allProducts.forEach((p) => types.add(p.type?.name || "Other"));
+    return Array.from(types).sort();
   }, [allProducts]);
 
   // Get unique brand names for filter
@@ -229,9 +250,9 @@ export default function ProductSheetApp() {
   const filteredProducts = useMemo(() => {
     let products = allProducts;
 
-    // Apply area filter
-    if (selectedAreaFilter !== "all") {
-      products = products.filter((p) => (p.area?.name || "Other") === selectedAreaFilter);
+    // Apply type filter
+    if (selectedTypeFilter !== "all") {
+      products = products.filter((p) => (p.type?.name || "Other") === selectedTypeFilter);
     }
 
     // Apply brand filter
@@ -254,26 +275,26 @@ export default function ProductSheetApp() {
     }
 
     return products;
-  }, [allProducts, searchQuery, selectedAreaFilter, selectedBrandFilter]);
+  }, [allProducts, searchQuery, selectedTypeFilter, selectedBrandFilter]);
 
-  // Group filtered products by area
-  const productsByArea = useMemo(() => {
+  // Group filtered products by type
+  const productsByType = useMemo(() => {
     return filteredProducts.reduce<Record<string, ApiProduct[]>>((acc, p) => {
-      const key = p.area?.name || "Other";
+      const key = p.type?.name || "Other";
       acc[key] = acc[key] ? [...acc[key], p] : [p];
       return acc;
     }, {});
   }, [filteredProducts]);
 
-  const filteredAreaNames = useMemo(() => Object.keys(productsByArea).sort(), [productsByArea]);
+  const filteredTypeNames = useMemo(() => Object.keys(productsByType).sort(), [productsByType]);
 
-  const toggleArea = (areaName: string) => {
+  const toggleType = (typeName: string) => {
     setExpandedAreas((prev) => {
       const newSet = new Set(prev);
-      if (newSet.has(areaName)) {
-        newSet.delete(areaName);
+      if (newSet.has(typeName)) {
+        newSet.delete(typeName);
       } else {
-        newSet.add(areaName);
+        newSet.add(typeName);
       }
       return newSet;
     });
@@ -291,7 +312,7 @@ export default function ProductSheetApp() {
           description: p.description,
           productDetails: p.productDetails,
           imageUrl: p.imageUrl,
-          areaName: p.area?.name || "Other",
+          typeName: p.type?.name || "Other",
           quantity: "",
           notes: "",
           link: p.link,
@@ -418,7 +439,7 @@ export default function ProductSheetApp() {
 
   const clearFilters = () => {
     setSearchQuery("");
-    setSelectedAreaFilter("all");
+    setSelectedTypeFilter("all");
     setSelectedBrandFilter("all");
   };
 
@@ -430,7 +451,7 @@ export default function ProductSheetApp() {
 
   const buildPayloadProducts = () =>
     selected.map((p) => ({
-      category: p.areaName,
+      category: p.typeName,
       code: p.code,
       description: p.description,
       productDetails: p.productDetails,
@@ -509,7 +530,7 @@ export default function ProductSheetApp() {
     }
   };
 
-  const hasActiveFilters = searchQuery.trim() || selectedAreaFilter !== "all" || selectedBrandFilter !== "all";
+  const hasActiveFilters = searchQuery.trim() || selectedTypeFilter !== "all" || selectedBrandFilter !== "all";
 
   return (
     <main className="min-h-screen bg-slate-50 py-16 px-4">
@@ -707,7 +728,7 @@ export default function ProductSheetApp() {
         {/* Document Details */}
         <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">📄 Document Details</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Address *</label>
               <input
@@ -716,6 +737,20 @@ export default function ProductSheetApp() {
                 placeholder="Property address"
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Area *</label>
+              <select
+                value={selectedAreaId}
+                onChange={(e) => setSelectedAreaId(e.target.value)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                required
+              >
+                <option value="">Select area...</option>
+                {areas.map((area) => (
+                  <option key={area.id} value={area.id}>{area.name}</option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
@@ -799,21 +834,21 @@ export default function ProductSheetApp() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Type to search..."
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-              />
-            </div>
+            />
+          </div>
 
             {/* Area Filter */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Area</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
               <select
-                value={selectedAreaFilter}
-                onChange={(e) => setSelectedAreaFilter(e.target.value)}
+                value={selectedTypeFilter}
+                onChange={(e) => setSelectedTypeFilter(e.target.value)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
               >
-                <option value="all">All Areas</option>
-                {areaNames.map((area) => (
-                  <option key={area} value={area}>
-                    {area}
+                <option value="all">All Types</option>
+                {typeNames.map((typeName) => (
+                  <option key={typeName} value={typeName}>
+                    {typeName}
                   </option>
                 ))}
               </select>
@@ -840,7 +875,7 @@ export default function ProductSheetApp() {
           <p className="text-xs text-slate-500 mt-2">
             Showing {filteredProducts.length} of {allProducts.length} products
           </p>
-        </div>
+              </div>
 
         {/* Area Dropdowns */}
         <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6">
@@ -848,24 +883,24 @@ export default function ProductSheetApp() {
 
           {loadingProducts ? (
             <div className="text-center py-8 text-slate-500">Loading products...</div>
-          ) : filteredAreaNames.length === 0 ? (
+          ) : filteredTypeNames.length === 0 ? (
             <div className="text-center py-8 text-slate-500">
               {hasActiveFilters ? "No products match your filters" : "No products found"}
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredAreaNames.map((areaName) => {
-                const isExpanded = expandedAreas.has(areaName);
-                const areaProducts = productsByArea[areaName] || [];
-                const selectedInArea = areaProducts.filter((p) =>
+              {filteredTypeNames.map((typeName) => {
+                const isExpanded = expandedAreas.has(typeName);
+                const typeProducts = productsByType[typeName] || [];
+                const selectedInType = typeProducts.filter((p) =>
                   selected.some((s) => s.id === p.id)
                 ).length;
 
                 return (
-                  <div key={areaName} className="border border-slate-200 rounded-lg overflow-hidden">
-                    {/* Area Header */}
+                  <div key={typeName} className="border border-slate-200 rounded-lg overflow-hidden">
+                    {/* Type Header */}
                     <button
-                      onClick={() => toggleArea(areaName)}
+                      onClick={() => toggleType(typeName)}
                       className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors"
                     >
                       <div className="flex items-center gap-3">
@@ -879,12 +914,12 @@ export default function ProductSheetApp() {
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
-                        <span className="text-slate-900 font-medium">{areaName}</span>
-                        <span className="text-sm text-slate-500">({areaProducts.length} products)</span>
+                        <span className="text-slate-900 font-medium">{typeName}</span>
+                        <span className="text-sm text-slate-500">({typeProducts.length} products)</span>
                       </div>
-                      {selectedInArea > 0 && (
+                      {selectedInType.length > 0 && (
                         <span className="bg-amber-500 text-white text-xs font-bold px-2 py-1 rounded">
-                          {selectedInArea} selected
+                          {selectedInType.length} selected
                         </span>
                       )}
                     </button>
@@ -892,7 +927,7 @@ export default function ProductSheetApp() {
                     {/* Area Products */}
                     {isExpanded && (
                       <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-white">
-                        {areaProducts.map((product) => {
+                        {typeProducts.map((product) => {
                   const isSelected = selected.some((s) => s.id === product.id);
                   return (
                     <div
@@ -923,9 +958,9 @@ export default function ProductSheetApp() {
                                         clipRule="evenodd"
                                       />
                                     </svg>
-                                  </div>
+                        </div>
                                 )}
-                              </div>
+                        </div>
 
                               {/* Product Info */}
                               <div className="p-3">
@@ -935,15 +970,15 @@ export default function ProductSheetApp() {
                                   </span>
                                   {product.brand && (
                                     <span className="text-xs text-slate-500">{product.brand}</span>
-                                  )}
-                        </div>
+                          )}
+                      </div>
                                 <p className="text-sm text-slate-800 mb-2 line-clamp-2">{product.description}</p>
                                 {product.productDetails && (
                                   <p className="text-xs text-slate-500 mb-3 line-clamp-2">
                                     {product.productDetails}
                                   </p>
                                 )}
-                                <button
+                      <button
                                   onClick={() =>
                                     isSelected ? removeFromSelected(product.id) : addProductToSelected(product)
                                   }
@@ -954,14 +989,14 @@ export default function ProductSheetApp() {
                                   }`}
                                 >
                                   {isSelected ? "Remove" : "Add to Selection"}
-                                </button>
+                      </button>
                         </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
                     </div>
+                  );
+                })}
+              </div>
+                    )}
+            </div>
                   );
                 })}
               </div>
@@ -1003,8 +1038,8 @@ export default function ProductSheetApp() {
                         <span className="bg-slate-200 text-slate-800 text-xs font-bold px-2 py-1 rounded">
                     {item.code}
                         </span>
-                        <span className="text-xs text-slate-500">{item.areaName}</span>
-                      </div>
+                        <span className="text-xs text-slate-500">{item.typeName}</span>
+                  </div>
                       <p className="text-sm text-slate-800 truncate">{item.description}</p>
                   </div>
 

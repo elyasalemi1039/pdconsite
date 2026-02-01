@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     if (all) {
       const products = await prisma.product.findMany({
         orderBy: { createdAt: "desc" },
-        include: { area: true },
+        include: { type: true },
       });
       return NextResponse.json({ products });
     }
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
       where,
       orderBy: { createdAt: "desc" },
       take: 50,
-      include: { area: true },
+      include: { type: true },
     });
     
     return NextResponse.json({ products });
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     const formData = await request.formData();
 
     const code = formData.get("code")?.toString() || "";
-    const areaId = formData.get("areaId")?.toString() || "";
+    const typeId = formData.get("typeId")?.toString() || "";
     const description = formData.get("description")?.toString() || "";
     const productDetails = formData.get("productDetails")?.toString() || "";
     const link = formData.get("link")?.toString() || "";
@@ -73,13 +73,13 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!areaId) {
-      return NextResponse.json({ error: "Area is required." }, { status: 400 });
+    if (!typeId) {
+      return NextResponse.json({ error: "Product type is required." }, { status: 400 });
     }
 
-    const area = await prisma.area.findUnique({ where: { id: areaId } });
-    if (!area) {
-      return NextResponse.json({ error: "Area not found." }, { status: 400 });
+    const productType = await prisma.productType.findUnique({ where: { id: typeId } });
+    if (!productType) {
+      return NextResponse.json({ error: "Product type not found." }, { status: 400 });
     }
 
     if (!description.trim()) {
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     const product = await prisma.product.create({
       data: {
         code,
-        areaId: area.id,
+        typeId: productType.id,
         description,
         productDetails: productDetails || null,
         imageUrl,
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
         brand: brand || null,
         keywords: keywords || null,
       },
-      include: { area: true },
+      include: { type: true },
     });
 
     return NextResponse.json({ product });
@@ -130,4 +130,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

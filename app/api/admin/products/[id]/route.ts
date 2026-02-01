@@ -13,7 +13,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    const { code, description, productDetails, link, brand, keywords, areaId } = body;
+    const { code, description, productDetails, link, brand, keywords, typeId } = body;
 
     // Check if product exists
     const existing = await prisma.product.findUnique({ where: { id } });
@@ -42,9 +42,9 @@ export async function PATCH(
         ...(link !== undefined && { link: link || null }),
         ...(brand !== undefined && { brand: brand || null }),
         ...(keywords !== undefined && { keywords: keywords || null }),
-        ...(areaId && { areaId }),
+        ...(typeId && { typeId }),
       },
-      include: { area: true },
+      include: { type: true },
     });
 
     return NextResponse.json({ product });

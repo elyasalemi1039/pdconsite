@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "desc" },
       skip,
       take: pageSize,
-      include: { area: true },
+      include: { type: true },
     });
 
     return NextResponse.json({ products });

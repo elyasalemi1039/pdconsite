@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 
-type Area = {
+type ProductType = {
   id: string;
   name: string;
 };
@@ -17,14 +17,14 @@ type Product = {
   link: string | null;
   brand: string | null;
   keywords: string | null;
-  areaId: string;
-  area: Area;
+  typeId: string;
+  type: ProductType;
   createdAt: string;
 };
 
 export default function ViewProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [areas, setAreas] = useState<Area[]>([]);
+  const [productTypes, setProductTypes] = useState<ProductType[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -35,19 +35,19 @@ export default function ViewProductsPage() {
   const pageSize = 50;
 
   useEffect(() => {
-    loadAreas();
+    loadProductTypes();
     loadProducts();
   }, [page]);
 
-  const loadAreas = async () => {
+  const loadProductTypes = async () => {
     try {
-      const res = await fetch("/api/admin/areas");
+      const res = await fetch("/api/admin/product-types");
       const data = await res.json();
-      if (data.areas) {
-        setAreas(data.areas);
+      if (data.productTypes) {
+        setProductTypes(data.productTypes);
       }
     } catch (error) {
-      toast.error("Failed to load areas");
+      toast.error("Failed to load product types");
     }
   };
 
@@ -93,7 +93,7 @@ export default function ViewProductsPage() {
           link: editForm.link,
           brand: editForm.brand,
           keywords: editForm.keywords,
-          areaId: editForm.areaId,
+          typeId: editForm.typeId,
         }),
       });
 
@@ -165,7 +165,7 @@ export default function ViewProductsPage() {
                 <th className="p-3">Image</th>
                 <th className="p-3">Description</th>
                 <th className="p-3">Brand</th>
-                <th className="p-3">Area</th>
+                <th className="p-3">Type</th>
                 <th className="p-3">Keywords</th>
                 <th className="p-3">Created</th>
                 <th className="p-3">Actions</th>
@@ -216,14 +216,14 @@ export default function ViewProductsPage() {
                         <td className="p-3">
                           <select
                             className="w-full rounded border border-slate-300 px-2 py-1 text-sm bg-white"
-                            value={editForm.areaId || ""}
+                            value={editForm.typeId || ""}
                             onChange={(e) =>
-                              setEditForm({ ...editForm, areaId: e.target.value })
+                              setEditForm({ ...editForm, typeId: e.target.value })
                             }
                           >
-                            {areas.map((area) => (
-                              <option key={area.id} value={area.id}>
-                                {area.name}
+                            {productTypes.map((type) => (
+                              <option key={type.id} value={type.id}>
+                                {type.name}
                               </option>
                             ))}
                           </select>
@@ -272,7 +272,7 @@ export default function ViewProductsPage() {
                         </td>
                         <td className="p-3">{p.description}</td>
                         <td className="p-3">{p.brand || "—"}</td>
-                        <td className="p-3">{p.area?.name || "—"}</td>
+                        <td className="p-3">{p.type?.name || "—"}</td>
                         <td className="p-3 text-xs max-w-[150px] truncate">
                           {p.keywords || "—"}
                         </td>

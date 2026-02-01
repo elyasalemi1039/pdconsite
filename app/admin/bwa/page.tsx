@@ -12,11 +12,11 @@ type Row = {
   keywords: string;
   link: string;
   productDetails: string;
-  area: string;
+  typeName: string;
   price: string;
 };
 
-type Area = {
+type ProductType = {
   id: string;
   name: string;
 };
@@ -33,24 +33,24 @@ export default function ProductImportPage() {
   const [rows, setRows] = useState<Row[]>([]);
   const [saving, setSaving] = useState(false);
   const [extracting, setExtracting] = useState(false);
-  const [areas, setAreas] = useState<Area[]>([]);
+  const [productTypes, setProductTypes] = useState<ProductType[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [bulkArea, setBulkArea] = useState<string>("");
+  const [bulkType, setBulkType] = useState<string>("");
 
   useEffect(() => {
-    fetch("/api/admin/areas")
+    fetch("/api/admin/product-types")
       .then((res) => res.json())
       .then((data) => {
-        if (data.areas) {
-          setAreas(data.areas);
-          if (data.areas.length > 0) {
-            setBulkArea(data.areas[0].name);
+        if (data.productTypes) {
+          setProductTypes(data.productTypes);
+          if (data.productTypes.length > 0) {
+            setBulkType(data.productTypes[0].name);
           }
         }
       })
-      .catch(() => toast.error("Failed to load areas"));
+      .catch(() => toast.error("Failed to load product types"));
 
     fetch("/api/admin/suppliers")
       .then((res) => res.json())
@@ -82,7 +82,7 @@ export default function ProductImportPage() {
       if (!res.ok) {
         toast.error(data?.error || "Failed to extract");
       } else {
-        const defaultArea = bulkArea || areas[0]?.name || "Kitchen";
+        const defaultType = bulkType || productTypes[0]?.name || "Other";
         const imported = (data.rows || []).map((r: any) => ({
           id: crypto.randomUUID(),
           code: r.code || "",
@@ -92,7 +92,7 @@ export default function ProductImportPage() {
           keywords: r.keywords || "",
           link: r.link || "",
           productDetails: r.productDetails || "",
-          area: r.area || defaultArea,
+          typeName: r.type || defaultType,
           price: r.price || "",
         }));
         if (imported.length === 0) {
@@ -117,10 +117,10 @@ export default function ProductImportPage() {
     setRows((prev) => prev.filter((r) => r.id !== id));
   };
 
-  const applyBulkArea = () => {
-    if (!bulkArea) return;
-    setRows((prev) => prev.map((r) => ({ ...r, area: bulkArea })));
-    toast.success(`Set all products to "${bulkArea}"`);
+  const applyBulkType = () => {
+    if (!bulkType) return;
+    setRows((prev) => prev.map((r) => ({ ...r, typeName: bulkType })));
+    toast.success(`Set all products to type "${bulkType}"`);
   };
 
   const handleImport = async () => {
@@ -144,13 +144,12 @@ export default function ProductImportPage() {
           try {
             const formData = new FormData();
             formData.append("code", r.code.trim());
-            formData.append("areaId", "");
             formData.append("description", r.name.trim() || r.code.trim());
             formData.append("productDetails", r.productDetails.trim());
             formData.append("link", r.link.trim());
             formData.append("brand", r.brand.trim());
             formData.append("keywords", r.keywords.trim());
-            formData.append("areaName", r.area);
+            formData.append("typeName", r.typeName);
 
             if (r.imageBase64) {
               const byteString = atob(r.imageBase64);
@@ -268,29 +267,37 @@ export default function ProductImportPage() {
           <div className="space-y-3">
             {/* Bulk Actions */}
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex flex-wrap items-center gap-3">
-              <span className="text-sm font-medium text-amber-800">Bulk:</span>
-              <select
-                value={bulkArea}
-                onChange={(e) => setBulkArea(e.target.value)}
-                className="px-2 py-1 border border-amber-300 rounded bg-white text-sm"
-              >
-                {areas.map((a) => (
-                  <option key={a.id} value={a.name}>{a.name}</option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={applyBulkArea}
-                className="px-3 py-1 bg-amber-500 text-white text-sm rounded hover:bg-amber-600"
-              >
-                Apply to All
-              </button>
+              <span className="text-sm font-medium text-amber-800">Bulk Type:</span>
+              {productTypes.length === 0 ? (
+                <a href="/admin/product-types" className="text-sm text-blue-600 hover:underline">
+                  + Add product types first
+                </a>
+              ) : (
+                <>
+                  <select
+                    value={bulkType}
+                    onChange={(e) => setBulkType(e.target.value)}
+                    className="px-2 py-1 border border-amber-300 rounded bg-white text-sm"
+                  >
+                    {productTypes.map((t) => (
+                      <option key={t.id} value={t.name}>{t.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={applyBulkType}
+                    className="px-3 py-1 bg-amber-500 text-white text-sm rounded hover:bg-amber-600"
+                  >
+                    Apply to All
+                  </button>
+                </>
+              )}
               <div className="flex-1" />
               <span className="text-sm text-slate-600">{rows.length} products</span>
               <button
                 type="button"
                 onClick={handleImport}
-                disabled={saving}
+                disabled={saving || productTypes.length === 0}
                 className="px-4 py-1.5 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 disabled:opacity-50"
               >
                 {saving ? "Importing..." : "Import All"}
@@ -341,14 +348,14 @@ export default function ProductImportPage() {
                         )}
                       </div>
 
-                      {/* Area Dropdown - Always Visible */}
+                      {/* Type Dropdown - Always Visible */}
                       <select
-                        value={r.area}
-                        onChange={(e) => update(r.id, "area", e.target.value)}
+                        value={r.typeName}
+                        onChange={(e) => update(r.id, "typeName", e.target.value)}
                         className="px-2 py-1.5 border border-slate-300 rounded bg-white text-sm min-w-[120px]"
                       >
-                        {areas.map((a) => (
-                          <option key={a.id} value={a.name}>{a.name}</option>
+                        {productTypes.map((t) => (
+                          <option key={t.id} value={t.name}>{t.name}</option>
                         ))}
                       </select>
 
@@ -418,8 +425,15 @@ export default function ProductImportPage() {
             <p className="text-slate-500">
               {suppliers.length === 0 
                 ? "Add a supplier to get started" 
+                : productTypes.length === 0 
+                ? "Add product types first (e.g. Basin, Tap, Toilet)"
                 : "Select a supplier and upload a file"}
             </p>
+            {productTypes.length === 0 && (
+              <a href="/admin/product-types" className="text-sm text-blue-600 hover:underline mt-2 inline-block">
+                → Manage Product Types
+              </a>
+            )}
           </div>
         )}
       </div>
