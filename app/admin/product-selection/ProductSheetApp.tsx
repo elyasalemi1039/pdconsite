@@ -1069,94 +1069,16 @@ export default function ProductSheetApp() {
           )}
         </div>
 
-        {/* Selected Products */}
+        {/* Selected Products - Organized by Area with Drag & Drop */}
         {selected.length > 0 && (
-          <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-900">✅ Selected Products ({selected.length})</h2>
-              <button
-                onClick={() => setSelected([])}
-                className="text-sm text-red-500 hover:underline"
-              >
-                Clear All
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {selected.map((item) => (
-                <div key={item.id} className="bg-slate-50 rounded-lg p-4 border border-slate-200">
-                  <div className="flex items-start gap-4">
-                    {/* Thumbnail */}
-                    <div className="w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-slate-200 flex items-center justify-center p-1">
-                      <img
-                        src={item.imageUrl || "/no-image.png"}
-                        alt={item.description}
-                        style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', objectFit: 'scale-down' }}
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = "/no-image.png";
-                        }}
-                      />
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="bg-slate-200 text-slate-800 text-xs font-bold px-2 py-1 rounded">
-                    {item.code}
-                        </span>
-                        <span className="text-xs text-slate-500">{item.typeName}</span>
-                  </div>
-                      <p className="text-sm text-slate-800 truncate">{item.description}</p>
-                  </div>
-
-                    {/* Remove Button */}
-                    <button
-                      onClick={() => removeFromSelected(item.id)}
-                      className="text-red-500 hover:text-red-600 p-1"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {/* Area, Qty and Notes */}
-                  <div className="mt-3 grid grid-cols-[1fr_80px_1fr] gap-3">
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1">Area *</label>
-                      <SearchableDropdownCreatable
-                        options={areas}
-                        value={item.areaName}
-                        onChange={(name, id) => updateSelectedArea(item.id, name, id)}
-                        placeholder="Select or type area..."
-                        error={!item.areaName}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1">Qty</label>
-                  <input
-                        type="text"
-                    placeholder="Qty"
-                    value={item.quantity}
-                    onChange={(e) => updateSelected(item.id, "quantity", e.target.value)}
-                        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-500 mb-1">Notes</label>
-                      <textarea
-                        placeholder="Additional notes..."
-                    value={item.notes}
-                    onChange={(e) => updateSelected(item.id, "notes", e.target.value)}
-                        rows={2}
-                        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <SelectedProductsOrganizer
+            selected={selected}
+            setSelected={setSelected}
+            areas={areas}
+            updateSelectedArea={updateSelectedArea}
+            updateSelected={updateSelected}
+            removeFromSelected={removeFromSelected}
+          />
         )}
 
         {/* Bottom Message */}
@@ -1171,13 +1093,13 @@ export default function ProductSheetApp() {
             }`}
           >
             {message.text}
-          </div>
+                  </div>
         )}
 
         {/* Generate Button */}
         <div className="flex items-center justify-end gap-4">
           <label className="flex items-center gap-2 cursor-pointer">
-            <input
+                  <input
               type="checkbox"
               checked={downloadAsWord}
               onChange={(e) => setDownloadAsWord(e.target.checked)}
@@ -1185,7 +1107,7 @@ export default function ProductSheetApp() {
             />
             <span className="text-sm text-slate-600">Download as Word (.docx)</span>
           </label>
-          <button
+                  <button
             onClick={generateDocument}
             disabled={generating}
             className="px-6 py-3 rounded-md bg-amber-500 hover:bg-amber-600 text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1195,5 +1117,295 @@ export default function ProductSheetApp() {
         </div>
       </div>
     </main>
+  );
+}
+
+// Drag & Drop Area Organizer Component
+function SelectedProductsOrganizer({
+  selected,
+  setSelected,
+  areas,
+  updateSelectedArea,
+  updateSelected,
+  removeFromSelected,
+}: {
+  selected: SelectedProduct[];
+  setSelected: React.Dispatch<React.SetStateAction<SelectedProduct[]>>;
+  areas: Area[];
+  updateSelectedArea: (id: string, areaName: string, areaId?: string) => void;
+  updateSelected: (id: string, field: "quantity" | "notes", value: string) => void;
+  removeFromSelected: (id: string) => void;
+}) {
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverArea, setDragOverArea] = useState<string | null>(null);
+
+  // Get unique area names from selected products
+  const usedAreaNames = useMemo(() => {
+    const areaSet = new Set<string>();
+    selected.forEach((p) => {
+      if (p.areaName) areaSet.add(p.areaName);
+    });
+    return Array.from(areaSet).sort();
+  }, [selected]);
+
+  // Products without an area
+  const unassignedProducts = useMemo(
+    () => selected.filter((p) => !p.areaName),
+    [selected]
+  );
+
+  // Products grouped by area
+  const productsByArea = useMemo(() => {
+    const grouped: Record<string, SelectedProduct[]> = {};
+    usedAreaNames.forEach((area) => {
+      grouped[area] = selected.filter((p) => p.areaName === area);
+    });
+    return grouped;
+  }, [selected, usedAreaNames]);
+
+  const hasAnyAreas = usedAreaNames.length > 0;
+
+  // Drag handlers
+  const handleDragStart = (e: React.DragEvent, productId: string) => {
+    setDraggedId(productId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", productId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedId(null);
+    setDragOverArea(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, areaName: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverArea(areaName);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverArea(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, areaName: string) => {
+    e.preventDefault();
+    const productId = e.dataTransfer.getData("text/plain");
+    if (productId) {
+      // Find area id if it's a saved area
+      const area = areas.find((a) => a.name === areaName);
+      updateSelectedArea(productId, areaName, area?.id);
+    }
+    setDragOverArea(null);
+    setDraggedId(null);
+  };
+
+  // Render a single product card (compact, draggable)
+  const ProductCard = ({ item, showAreaDropdown = false }: { item: SelectedProduct; showAreaDropdown?: boolean }) => (
+    <div
+      draggable
+      onDragStart={(e) => handleDragStart(e, item.id)}
+      onDragEnd={handleDragEnd}
+      className={`bg-white rounded-lg p-3 border shadow-sm cursor-grab active:cursor-grabbing transition-all ${
+        draggedId === item.id ? "opacity-50 scale-95" : "border-slate-200 hover:border-amber-300"
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        {/* Drag Handle */}
+        <div className="flex-shrink-0 text-slate-300 mt-1">
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M7 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 2zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 14zm6-8a2 2 0 1 0-.001-4.001A2 2 0 0 0 13 6zm0 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 14z" />
+          </svg>
+        </div>
+
+        {/* Thumbnail */}
+        <div className="w-12 h-12 flex-shrink-0 rounded overflow-hidden bg-slate-100 flex items-center justify-center">
+          <img
+            src={item.imageUrl || "/no-image.png"}
+            alt={item.description}
+            className="max-w-full max-h-full object-scale-down"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = "/no-image.png";
+            }}
+          />
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="bg-slate-200 text-slate-800 text-xs font-bold px-1.5 py-0.5 rounded">
+              {item.code}
+            </span>
+            <span className="text-xs text-slate-400">{item.typeName}</span>
+          </div>
+          <p className="text-xs text-slate-600 truncate mt-0.5">{item.description}</p>
+        </div>
+
+        {/* Remove */}
+        <button
+          onClick={() => removeFromSelected(item.id)}
+          className="text-slate-400 hover:text-red-500 p-0.5"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Qty & Notes Row */}
+      <div className="mt-2 flex gap-2">
+        {showAreaDropdown && (
+          <div className="flex-1">
+            <SearchableDropdownCreatable
+              options={areas}
+              value={item.areaName}
+              onChange={(name, id) => updateSelectedArea(item.id, name, id)}
+              placeholder="Area..."
+              error={!item.areaName}
+            />
+          </div>
+        )}
+        <input
+          type="text"
+          placeholder="Qty"
+          value={item.quantity}
+          onChange={(e) => updateSelected(item.id, "quantity", e.target.value)}
+          className="w-16 rounded border border-slate-300 px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"
+        />
+        <input
+          type="text"
+          placeholder="Notes"
+          value={item.notes}
+          onChange={(e) => updateSelected(item.id, "notes", e.target.value)}
+          className="flex-1 rounded border border-slate-300 px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500"
+        />
+      </div>
+    </div>
+  );
+
+  // Area drop zone
+  const AreaDropZone = ({ areaName, products }: { areaName: string; products: SelectedProduct[] }) => (
+    <div
+      onDragOver={(e) => handleDragOver(e, areaName)}
+      onDragLeave={handleDragLeave}
+      onDrop={(e) => handleDrop(e, areaName)}
+      className={`rounded-lg border-2 transition-all ${
+        dragOverArea === areaName
+          ? "border-amber-400 bg-amber-50"
+          : "border-slate-200 bg-slate-50"
+      }`}
+    >
+      {/* Area Header */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-white rounded-t-lg">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">📍</span>
+          <h3 className="font-semibold text-slate-900">{areaName}</h3>
+          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+            {products.length} item{products.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+      </div>
+
+      {/* Products */}
+      <div className="p-3 space-y-2 min-h-[80px]">
+        {products.length === 0 ? (
+          <div className="text-center py-4 text-sm text-slate-400">
+            Drop products here
+          </div>
+        ) : (
+          products.map((item) => (
+            <ProductCard key={item.id} item={item} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">✅ Selected Products ({selected.length})</h2>
+          {hasAnyAreas && (
+            <p className="text-xs text-slate-500 mt-1">
+              Drag products between areas or drop into area boxes
+            </p>
+          )}
+        </div>
+        <button
+          onClick={() => setSelected([])}
+          className="text-sm text-red-500 hover:underline"
+        >
+          Clear All
+        </button>
+      </div>
+
+      {/* If no areas assigned yet, show simple list with dropdowns */}
+      {!hasAnyAreas ? (
+        <div className="space-y-3">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+            💡 Assign an area to a product to enable drag & drop organization
+          </div>
+          {selected.map((item) => (
+            <ProductCard key={item.id} item={item} showAreaDropdown />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Unassigned Products */}
+          {unassignedProducts.length > 0 && (
+            <div className="rounded-lg border-2 border-dashed border-slate-300 bg-slate-50">
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-slate-200">
+                <span className="text-lg">📦</span>
+                <h3 className="font-medium text-slate-700">Unassigned</h3>
+                <span className="text-xs bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full">
+                  {unassignedProducts.length}
+                </span>
+              </div>
+              <div className="p-3 space-y-2">
+                {unassignedProducts.map((item) => (
+                  <ProductCard key={item.id} item={item} showAreaDropdown />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Area Groups */}
+          {usedAreaNames.map((areaName) => (
+            <AreaDropZone
+              key={areaName}
+              areaName={areaName}
+              products={productsByArea[areaName] || []}
+            />
+          ))}
+
+          {/* Create New Area Drop Zone */}
+          <div
+            onDragOver={(e) => handleDragOver(e, "__new__")}
+            onDragLeave={handleDragLeave}
+            onDrop={(e) => {
+              e.preventDefault();
+              const productId = e.dataTransfer.getData("text/plain");
+              if (productId) {
+                const newAreaName = prompt("Enter new area name:");
+                if (newAreaName?.trim()) {
+                  const area = areas.find((a) => a.name.toLowerCase() === newAreaName.trim().toLowerCase());
+                  updateSelectedArea(productId, newAreaName.trim(), area?.id);
+                }
+              }
+              setDragOverArea(null);
+              setDraggedId(null);
+            }}
+            className={`rounded-lg border-2 border-dashed text-center py-6 transition-all ${
+              dragOverArea === "__new__"
+                ? "border-green-400 bg-green-50 text-green-700"
+                : "border-slate-300 text-slate-400"
+            }`}
+          >
+            <span className="text-2xl">➕</span>
+            <p className="text-sm mt-1">Drop here to create a new area</p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
