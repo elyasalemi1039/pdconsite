@@ -7,49 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Find product codes in PDF text by matching against existing database products
- * This is a generic approach that works with any supplier
- */
-function findProductCodesInText(
-  text: string, 
-  existingCodes: string[]
-): { foundCodes: string[]; allMatches: Map<string, string> } {
-  const foundCodes: string[] = [];
-  const allMatches = new Map<string, string>(); // normalizedCode -> originalCode
-  
-  // Normalize text for searching
-  const normalizedText = text.toUpperCase();
-  
-  // Try to find each existing product code in the text
-  for (const code of existingCodes) {
-    const normalizedCode = code.toUpperCase();
-    
-    // Try exact match first
-    if (normalizedText.includes(normalizedCode)) {
-      if (!foundCodes.includes(code)) {
-        foundCodes.push(code);
-        allMatches.set(normalizedCode, code);
-      }
-      continue;
-    }
-    
-    // Try without spaces/dashes (normalized)
-    const compactCode = normalizedCode.replace(/[\s\-_.]/g, "");
-    const compactText = normalizedText.replace(/[\s\-_.]/g, "");
-    if (compactText.includes(compactCode) && compactCode.length >= 4) {
-      if (!foundCodes.includes(code)) {
-        foundCodes.push(code);
-        allMatches.set(normalizedCode, code);
-      }
-    }
-  }
-  
-  return { foundCodes, allMatches };
-}
-
-/**
- * Extract BWA-style codes from text (for backwards compatibility)
- * Format: BWA [CATEGORY] [CODE...]
+ * Extract codes using BWA format: BWA [CATEGORY] [CODE...]
  */
 function extractBWACodes(text: string): string[] {
   const codes = new Set<string>();
@@ -66,6 +24,7 @@ function extractBWACodes(text: string): string[] {
     const category = categoryMatch[1].toUpperCase();
     let codePart = categoryMatch[2].trim();
     
+    // Handle codes split across lines
     if (codePart.endsWith("-") && i + 1 < lines.length) {
       const nextLine = lines[i + 1].trim();
       const contMatch = nextLine.match(/^([A-Z0-9][A-Z0-9]*)/i);
@@ -75,12 +34,14 @@ function extractBWACodes(text: string): string[] {
       }
     }
     
+    // Stop words that indicate end of code
     const stopWords = [
       "VANITY", "TOILET", "BATH", "BASIN", "MIXER", "SPOUT", 
       "SHOWER", "FILLER", "WASTE", "HOLDER", "CISTERN", "MATT", 
       "SATIN", "WHITE", "GOLD", "BRASS", "CHROME", "BLACK", 
       "OPTIONS", "AVAILABLE", "COLOURS", "HANDLE", "STONE", "TOP",
-      "WITH", "AND", "THE", "FOR", "IN", "TO", "MM", "NO"
+      "WITH", "AND", "THE", "FOR", "IN", "TO", "MM", "NO",
+      "WALL", "HUNG", "FLOOR", "STANDING", "FREESTANDING"
     ];
     
     const words = codePart.split(/\s+/);
@@ -91,7 +52,7 @@ function extractBWACodes(text: string): string[] {
       if (stopWords.includes(upperWord)) break;
       if (/^[A-Z0-9][A-Z0-9\-_.]*$/i.test(word)) {
         codeWords.push(upperWord);
-        if (/^\d{3,4}$/.test(word)) break;
+        if (/^\d{3,4}$/.test(word)) break; // Dimension numbers end the code
       } else {
         break;
       }
@@ -107,58 +68,67 @@ function extractBWACodes(text: string): string[] {
 }
 
 /**
- * Find fuzzy matches for a code in the product list
+ * Generic code extraction - looks for patterns like:
+ * - Alphanumeric codes (ABC123, A1-B2-C3)
+ * - Codes after "Code:" or "Product Code:" labels
+ */
+function extractGenericCodes(text: string): string[] {
+  const codes = new Set<string>();
+  
+  // Pattern 1: Look for "Code:" or similar labels followed by a code
+  const labelPatterns = [
+    /(?:product\s*code|code|item|sku|part\s*no|part\s*#)[:\s]+([A-Z0-9][A-Z0-9\-_.]{2,20})/gi,
+  ];
+  
+  for (const pattern of labelPatterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const code = match[1].trim().toUpperCase();
+      if (code.length >= 3 && code.length <= 25) {
+        codes.add(code);
+      }
+    }
+  }
+  
+  // Pattern 2: Look for standalone alphanumeric codes (common formats)
+  // Format: 2+ letters followed by numbers and optional suffixes
+  const standalonePattern = /\b([A-Z]{2,4}\d{2,6}[A-Z0-9\-]*)\b/g;
+  let match;
+  while ((match = standalonePattern.exec(text.toUpperCase())) !== null) {
+    const code = match[1];
+    if (code.length >= 4 && code.length <= 25) {
+      codes.add(code);
+    }
+  }
+  
+  return Array.from(codes);
+}
+
+/**
+ * Find fuzzy matches for codes that weren't found exactly
  */
 function findFuzzyMatches(
   searchCode: string,
   allProducts: Array<{ id: string; code: string; description: string; [key: string]: any }>
-): Array<{ id: string; code: string; description: string; matchType: string; [key: string]: any }> {
+): Array<{ id: string; code: string; description: string; matchType: string }> {
   const normalizedSearch = searchCode.toUpperCase().replace(/[\s\-_.]/g, "");
-  const searchParts = searchCode.toUpperCase().split(/[\s\-_.]+/).filter(Boolean);
-  
   const matches: Array<{ product: any; score: number; matchType: string }> = [];
   
   for (const product of allProducts) {
     const normalizedCode = product.code.toUpperCase().replace(/[\s\-_.]/g, "");
-    const codeParts = product.code.toUpperCase().split(/[\s\-_.]+/).filter(Boolean);
     
     let score = 0;
     let matchType = "";
     
-    // Exact match
     if (normalizedCode === normalizedSearch) {
       score = 100;
       matchType = "exact";
-    }
-    // Search code is contained in product code
-    else if (normalizedCode.includes(normalizedSearch)) {
+    } else if (normalizedCode.includes(normalizedSearch) && normalizedSearch.length >= 4) {
       score = 80;
       matchType = "contains";
-    }
-    // Product code is contained in search code
-    else if (normalizedSearch.includes(normalizedCode)) {
+    } else if (normalizedSearch.includes(normalizedCode) && normalizedCode.length >= 4) {
       score = 70;
       matchType = "partial";
-    }
-    // Check if significant parts match
-    else {
-      let matchingParts = 0;
-      for (const searchPart of searchParts) {
-        if (searchPart.length >= 2) {
-          for (const codePart of codeParts) {
-            if (codePart === searchPart) {
-              matchingParts += 2;
-            } else if (codePart.includes(searchPart) || searchPart.includes(codePart)) {
-              matchingParts += 1;
-            }
-          }
-        }
-      }
-      
-      if (matchingParts >= 2) {
-        score = 30 + matchingParts * 10;
-        matchType = "parts";
-      }
     }
     
     if (score > 0) {
@@ -167,8 +137,10 @@ function findFuzzyMatches(
   }
   
   matches.sort((a, b) => b.score - a.score);
-  return matches.slice(0, 5).map((m) => ({
-    ...m.product,
+  return matches.slice(0, 3).map((m) => ({
+    id: m.product.id,
+    code: m.product.code,
+    description: m.product.description,
     matchType: m.matchType,
   }));
 }
@@ -182,6 +154,7 @@ export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const file = formData.get("pdf") as File | null;
+    const supplierId = formData.get("supplierId")?.toString() || "";
 
     if (!file) {
       return NextResponse.json({ error: "No PDF file provided" }, { status: 400 });
@@ -191,72 +164,94 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "File must be a PDF" }, { status: 400 });
     }
 
+    // Get supplier info if provided
+    let supplier = null;
+    if (supplierId) {
+      supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
+    }
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-
     const pdfData = await pdfParse(buffer);
     const extractedText = pdfData.text;
 
-    // Get ALL products from database first
-    const allProducts = await prisma.product.findMany({
-      include: { type: true },
-    });
+    // Extract codes based on supplier
+    let extractedCodes: string[] = [];
     
-    const existingCodes = allProducts.map(p => p.code);
-    
-    // Method 1: Try to find existing product codes directly in the PDF text
-    const { foundCodes: directMatches } = findProductCodesInText(extractedText, existingCodes);
-    
-    // Method 2: Try BWA-style extraction (for backwards compatibility)
-    const bwaCodes = extractBWACodes(extractedText);
-    
-    // Combine both methods
-    const allExtractedCodes = [...new Set([...directMatches, ...bwaCodes])];
-    
-    console.log("Direct matches:", directMatches.length);
-    console.log("BWA codes found:", bwaCodes.length);
-    console.log("Total unique codes:", allExtractedCodes.length);
+    if (supplier) {
+      const supplierNameLower = supplier.name.toLowerCase();
+      
+      // BWA-specific parsing
+      if (supplierNameLower.includes("bwa") || supplierNameLower.includes("builders warehouse")) {
+        extractedCodes = extractBWACodes(extractedText);
+        console.log("Using BWA parser, found:", extractedCodes.length, "codes");
+      } else {
+        // Generic parsing for other suppliers
+        extractedCodes = extractGenericCodes(extractedText);
+        console.log("Using generic parser, found:", extractedCodes.length, "codes");
+      }
+    } else {
+      // No supplier - try BWA first, then generic
+      extractedCodes = extractBWACodes(extractedText);
+      if (extractedCodes.length === 0) {
+        extractedCodes = extractGenericCodes(extractedText);
+      }
+      console.log("No supplier specified, found:", extractedCodes.length, "codes");
+    }
 
-    if (allExtractedCodes.length === 0) {
+    if (extractedCodes.length === 0) {
       return NextResponse.json({
         success: true,
         products: [],
         extractedCodes: [],
         suggestedMatches: {},
-        message: "No product codes found in PDF. Make sure the products exist in your database first.",
+        message: "No product codes found in PDF. Check that the supplier format is configured correctly.",
       });
     }
 
-    // Match extracted codes to products
-    const exactMatches: typeof allProducts = [];
-    const notFoundCodes: string[] = [];
-    const suggestedMatches: Record<string, Array<{ id: string; code: string; description: string; matchType: string }>> = {};
+    // Now find matching products in database
+    // Use WHERE IN for efficiency instead of loading all products
+    const normalizedCodes = extractedCodes.map(c => c.toUpperCase());
+    
+    const matchedProducts = await prisma.product.findMany({
+      where: {
+        OR: [
+          { code: { in: extractedCodes } },
+          { code: { in: normalizedCodes } },
+        ]
+      },
+      include: { type: true },
+    });
 
-    for (const code of allExtractedCodes) {
-      const normalizedExtracted = code.toUpperCase().replace(/[\s\-_.]/g, "");
-      
-      const exactMatch = allProducts.find((p) => {
-        const normalizedDb = p.code.toUpperCase().replace(/[\s\-_.]/g, "");
-        return normalizedDb === normalizedExtracted || 
-               p.code.toUpperCase() === code.toUpperCase();
+    // Build a map for quick lookup
+    const productMap = new Map(matchedProducts.map(p => [p.code.toUpperCase(), p]));
+    
+    const exactMatches: typeof matchedProducts = [];
+    const notFoundCodes: string[] = [];
+    
+    for (const code of extractedCodes) {
+      const product = productMap.get(code.toUpperCase());
+      if (product && !exactMatches.some(m => m.id === product.id)) {
+        exactMatches.push(product);
+      } else if (!product) {
+        notFoundCodes.push(code);
+      }
+    }
+
+    // For not found codes, get fuzzy matches (only load products if needed)
+    let suggestedMatches: Record<string, Array<{ id: string; code: string; description: string; matchType: string }>> = {};
+    
+    if (notFoundCodes.length > 0 && notFoundCodes.length <= 20) {
+      // Only do fuzzy matching if there aren't too many missing codes
+      const allProducts = await prisma.product.findMany({
+        select: { id: true, code: true, description: true },
+        take: 500, // Limit for performance
       });
       
-      if (exactMatch) {
-        if (!exactMatches.some((m) => m.id === exactMatch.id)) {
-          exactMatches.push(exactMatch);
-        }
-      } else {
-        notFoundCodes.push(code);
-        
-        // Find fuzzy matches
-        const fuzzyMatches = findFuzzyMatches(code, allProducts);
-        if (fuzzyMatches.length > 0) {
-          suggestedMatches[code] = fuzzyMatches.map((m) => ({
-            id: m.id,
-            code: m.code,
-            description: m.description,
-            matchType: m.matchType,
-          }));
+      for (const code of notFoundCodes) {
+        const fuzzy = findFuzzyMatches(code, allProducts);
+        if (fuzzy.length > 0) {
+          suggestedMatches[code] = fuzzy;
         }
       }
     }
@@ -274,11 +269,12 @@ export async function POST(req: Request) {
         keywords: p.keywords,
         type: p.type,
       })),
-      extractedCodes: allExtractedCodes,
+      extractedCodes,
       foundCodes: exactMatches.map((p) => p.code),
       notFoundCodes,
       suggestedMatches,
       pageCount: pdfData.numpages,
+      supplierUsed: supplier?.name || "auto-detect",
     });
   } catch (error: unknown) {
     console.error("Error parsing PDF:", error);

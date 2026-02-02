@@ -376,6 +376,11 @@ export default function ProductSheetApp() {
         return;
       }
 
+      if (!selectedSupplierId) {
+        setMessage({ type: "error", text: "Please select a supplier first" });
+        return;
+      }
+
       setParsingPdf(true);
       setMessage(null);
       setPdfParseInfo(null);
@@ -383,6 +388,7 @@ export default function ProductSheetApp() {
       try {
         const formData = new FormData();
         formData.append("pdf", file);
+        formData.append("supplierId", selectedSupplierId);
 
         const res = await fetch(`${API_BASE}/parse-pdf`, {
           method: "POST",
@@ -433,7 +439,7 @@ export default function ProductSheetApp() {
         setParsingPdf(false);
       }
     },
-    [addProductToSelected]
+    [addProductToSelected, selectedSupplierId]
   );
 
   const handleDrop = useCallback(
