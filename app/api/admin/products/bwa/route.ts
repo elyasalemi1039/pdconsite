@@ -32,27 +32,20 @@ export async function POST(request: Request) {
       productType = await prisma.productType.create({ data: { name: typeName } });
     }
 
-    // Handle image upload - don't fail if R2 upload fails
+    // Handle image upload
     let imageUrl = "/no-image.png";
     
     if (image && image.size > 0) {
-      try {
-        const buffer = Buffer.from(await image.arrayBuffer());
-        // Sanitize code for use in key (remove special chars)
-        const safeCode = code.replace(/[^a-zA-Z0-9-_]/g, "_");
-        const key = `products/import-${safeCode}-${Date.now()}.png`;
+      const buffer = Buffer.from(await image.arrayBuffer());
+      const key = `products/import-${code}-${Date.now()}-${image.name || "image.png"}`;
 
-        await uploadToR2({
-          key,
-          body: buffer,
-          contentType: image.type || "image/png",
-        });
+      await uploadToR2({
+        key,
+        body: buffer,
+        contentType: image.type || "image/png",
+      });
 
-        imageUrl = getPublicUrl(key);
-      } catch (uploadError) {
-        console.error("Image upload failed, using placeholder:", uploadError);
-        // Continue without image - don't fail the whole request
-      }
+      imageUrl = getPublicUrl(key);
     }
 
     // Check if product with this code already exists
@@ -81,20 +74,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ product });
   } catch (error: any) {
     console.error("Error creating product:", error);
-    
-    // Check for specific Prisma errors
-    if (error?.code === "P2002") {
-      return NextResponse.json(
-        { error: `Product with this code already exists.` },
-        { status: 400 }
-      );
-    }
-    
     return NextResponse.json(
       {
         error: "Failed to create product",
         details: error?.message || "Unknown error",
-        code: error?.code,
       },
       { status: 500 }
     );
