@@ -651,82 +651,93 @@ export default function ProductSheetApp() {
           
           {/* Supplier Selection */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-700 mb-1">Supplier (optional)</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Supplier *</label>
             <div className="flex gap-2 items-center">
-              <select
-                value={selectedSupplierId}
-                onChange={(e) => setSelectedSupplierId(e.target.value)}
-                className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-              >
-                <option value="">Any supplier (generic import)</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-              {suppliers.length === 0 && (
-                <a href="/admin/suppliers" className="text-xs text-blue-600 hover:underline whitespace-nowrap">
-                  + Add suppliers
-                </a>
+              {suppliers.length === 0 ? (
+                <div className="flex-1 flex items-center gap-2">
+                  <div className="h-10 flex-1 bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 animate-pulse rounded-md" />
+                  <a href="/admin/suppliers" className="text-xs text-blue-600 hover:underline whitespace-nowrap">
+                    + Add suppliers
+                  </a>
+                </div>
+              ) : (
+                <select
+                  value={selectedSupplierId}
+                  onChange={(e) => setSelectedSupplierId(e.target.value)}
+                  className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="">Select a supplier...</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
               )}
             </div>
           </div>
 
-          <div
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            className={`relative rounded-lg border-2 border-dashed transition-all duration-200 cursor-pointer ${
-              isDragging
-                ? "border-amber-500 bg-amber-50"
-                : "border-slate-300 hover:border-amber-400"
-            } ${parsingPdf ? "opacity-60 pointer-events-none" : ""}`}
-          >
-            <input
-              type="file"
-              accept=".pdf,application/pdf"
-              onChange={handleFileInput}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              disabled={parsingPdf}
-            />
-            <div className="flex flex-col items-center justify-center py-8 px-6">
-              <div
-                className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
-                  isDragging ? "bg-amber-100" : "bg-slate-100"
-                }`}
-              >
-                {parsingPdf ? (
-                  <svg className="w-6 h-6 text-amber-500 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    className={`w-6 h-6 ${isDragging ? "text-amber-500" : "text-slate-400"}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                    />
-                  </svg>
-                )}
+          {/* Upload Area - Only show when supplier is selected */}
+          {selectedSupplierId ? (
+            <div
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              className={`relative rounded-lg border-2 border-dashed transition-all duration-200 cursor-pointer ${
+                isDragging
+                  ? "border-amber-500 bg-amber-50"
+                  : "border-slate-300 hover:border-amber-400"
+              } ${parsingPdf ? "opacity-60 pointer-events-none" : ""}`}
+            >
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={handleFileInput}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                disabled={parsingPdf}
+              />
+              <div className="flex flex-col items-center justify-center py-8 px-6">
+                <div
+                  className={`w-12 h-12 rounded-full flex items-center justify-center mb-3 ${
+                    isDragging ? "bg-amber-100" : "bg-slate-100"
+                  }`}
+                >
+                  {parsingPdf ? (
+                    <svg className="w-6 h-6 text-amber-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      className={`w-6 h-6 ${isDragging ? "text-amber-500" : "text-slate-400"}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                  )}
+                </div>
+                <p className="text-sm font-medium text-slate-700 mb-1">
+                  {parsingPdf ? "Extracting products..." : isDragging ? "Drop PDF here" : "Upload PDF"}
+                </p>
+                <p className="text-xs text-slate-500 text-center">
+                  {parsingPdf ? "Matching product codes with database..." : "Drag and drop, or click to browse"}
+                </p>
               </div>
-              <p className="text-sm font-medium text-slate-700 mb-1">
-                {parsingPdf ? "Extracting products..." : isDragging ? "Drop PDF here" : "Upload PDF"}
-              </p>
-              <p className="text-xs text-slate-500 text-center">
-                {parsingPdf ? "Matching product codes with database..." : "Drag and drop, or click to browse"}
-              </p>
             </div>
-          </div>
+          ) : (
+            <div className="rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 py-8 px-6 text-center">
+              <p className="text-sm text-slate-500">Select a supplier above to upload their sheet</p>
+            </div>
+          )}
 
           {pdfParseInfo && pdfParseInfo.notFound.length > 0 && (
             <div className="mt-4 space-y-3">
