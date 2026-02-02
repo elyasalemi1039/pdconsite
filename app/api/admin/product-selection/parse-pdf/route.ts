@@ -1,107 +1,260 @@
 import { getSessionFromCookies } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import pdfParse from "pdf-parse";
+import PizZip from "pizzip";
+import { parseStringPromise } from "xml2js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type ColumnMapping = {
+  column: number;
+  field: string;
+};
+
 /**
- * Extract codes using BWA format: BWA [CATEGORY] [CODE...]
+ * Convert PDF to DOCX using CloudConvert (same as import)
  */
-function extractBWACodes(text: string): string[] {
-  const codes = new Set<string>();
-  const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (!/^BWA\s+/i.test(line)) continue;
-    
-    let remaining = line.replace(/^BWA\s+/i, "").trim();
-    const categoryMatch = remaining.match(/^([A-Z]\d+)\s+(.+)/i);
-    if (!categoryMatch) continue;
-    
-    const category = categoryMatch[1].toUpperCase();
-    let codePart = categoryMatch[2].trim();
-    
-    // Handle codes split across lines
-    if (codePart.endsWith("-") && i + 1 < lines.length) {
-      const nextLine = lines[i + 1].trim();
-      const contMatch = nextLine.match(/^([A-Z0-9][A-Z0-9]*)/i);
-      if (contMatch) {
-        codePart += contMatch[1];
-        i++;
-      }
-    }
-    
-    // Stop words that indicate end of code
-    const stopWords = [
-      "VANITY", "TOILET", "BATH", "BASIN", "MIXER", "SPOUT", 
-      "SHOWER", "FILLER", "WASTE", "HOLDER", "CISTERN", "MATT", 
-      "SATIN", "WHITE", "GOLD", "BRASS", "CHROME", "BLACK", 
-      "OPTIONS", "AVAILABLE", "COLOURS", "HANDLE", "STONE", "TOP",
-      "WITH", "AND", "THE", "FOR", "IN", "TO", "MM", "NO",
-      "WALL", "HUNG", "FLOOR", "STANDING", "FREESTANDING"
-    ];
-    
-    const words = codePart.split(/\s+/);
-    const codeWords: string[] = [];
-    
-    for (const word of words) {
-      const upperWord = word.toUpperCase();
-      if (stopWords.includes(upperWord)) break;
-      if (/^[A-Z0-9][A-Z0-9\-_.]*$/i.test(word)) {
-        codeWords.push(upperWord);
-        if (/^\d{3,4}$/.test(word)) break; // Dimension numbers end the code
-      } else {
-        break;
-      }
-    }
-    
-    if (codeWords.length > 0) {
-      let codeStr = codeWords.join(" ").replace(/-\s+/g, "-").replace(/\s+-/g, "-");
-      codes.add(`${category} ${codeStr}`);
-    }
+async function convertPdfToDocx(pdfBuffer: Buffer): Promise<Buffer> {
+  const CloudConvert = (await import("cloudconvert")).default;
+  const cloudConvert = new CloudConvert(process.env.CLOUDCONVERT_API_KEY!);
+
+  const job = await cloudConvert.jobs.create({
+    tasks: {
+      "upload-pdf": {
+        operation: "import/upload",
+      },
+      "convert-to-docx": {
+        operation: "convert",
+        input: "upload-pdf",
+        output_format: "docx",
+      },
+      "export-docx": {
+        operation: "export/url",
+        input: "convert-to-docx",
+      },
+    },
+  });
+
+  const uploadTask = job.tasks.find((t: any) => t.name === "upload-pdf");
+  if (!uploadTask) {
+    throw new Error("Upload task not found");
   }
-  
-  return Array.from(codes);
+
+  await cloudConvert.tasks.upload(uploadTask, pdfBuffer, "document.pdf");
+
+  const completedJob = await cloudConvert.jobs.wait(job.id);
+
+  const exportTask = completedJob.tasks.find((t: any) => t.name === "export-docx");
+  if (!exportTask?.result?.files?.[0]?.url) {
+    throw new Error("Export task failed or no file URL");
+  }
+
+  const docxUrl = exportTask.result.files[0].url;
+  const docxResponse = await fetch(docxUrl);
+  if (!docxResponse.ok) {
+    throw new Error("Failed to download converted DOCX");
+  }
+
+  return Buffer.from(await docxResponse.arrayBuffer());
 }
 
 /**
- * Generic code extraction - looks for patterns like:
- * - Alphanumeric codes (ABC123, A1-B2-C3)
- * - Codes after "Code:" or "Product Code:" labels
+ * Extract product codes from DOCX using supplier's column mappings (same logic as import)
  */
-function extractGenericCodes(text: string): string[] {
-  const codes = new Set<string>();
-  
-  // Pattern 1: Look for "Code:" or similar labels followed by a code
-  const labelPatterns = [
-    /(?:product\s*code|code|item|sku|part\s*no|part\s*#)[:\s]+([A-Z0-9][A-Z0-9\-_.]{2,20})/gi,
-  ];
-  
-  for (const pattern of labelPatterns) {
-    let match;
-    while ((match = pattern.exec(text)) !== null) {
-      const code = match[1].trim().toUpperCase();
-      if (code.length >= 3 && code.length <= 25) {
-        codes.add(code);
+async function extractCodesFromDocx(
+  docxBuffer: Buffer,
+  columnMappings: ColumnMapping[],
+  startRow: number = 2
+): Promise<string[]> {
+  const zip = new PizZip(docxBuffer);
+  const codes: string[] = [];
+
+  const docFile = zip.file("word/document.xml");
+  if (!docFile) {
+    throw new Error("No document.xml found in DOCX");
+  }
+
+  const docXml = docFile.asText();
+  const docData = await parseStringPromise(docXml, { explicitArray: false });
+
+  // Helper to extract text from a node
+  const extractText = (node: any): string => {
+    if (!node) return "";
+    if (typeof node === "string") return node;
+    if (node["w:t"]) {
+      const t = node["w:t"];
+      if (typeof t === "string") return t;
+      if (typeof t === "object" && t._) return t._;
+      if (Array.isArray(t)) return t.map(extractText).join("");
+      return "";
+    }
+    if (node["w:r"]) {
+      const runs = Array.isArray(node["w:r"]) ? node["w:r"] : [node["w:r"]];
+      return runs.map(extractText).join("");
+    }
+    if (node["w:p"]) {
+      const paras = Array.isArray(node["w:p"]) ? node["w:p"] : [node["w:p"]];
+      return paras.map(extractText).join(" ");
+    }
+    return "";
+  };
+
+  // Find which column has the code field
+  const codeColumn = columnMappings.find(m => m.field === "code")?.column;
+  if (!codeColumn) {
+    throw new Error("Supplier has no 'code' column mapped");
+  }
+
+  const body = docData?.["w:document"]?.["w:body"];
+  if (!body) {
+    throw new Error("No body found in document");
+  }
+
+  const tables = body["w:tbl"];
+  const tableList = tables ? (Array.isArray(tables) ? tables : [tables]) : [];
+
+  for (const table of tableList) {
+    const rows = table["w:tr"];
+    const rowList = rows ? (Array.isArray(rows) ? rows : [rows]) : [];
+
+    for (let i = startRow - 1; i < rowList.length; i++) {
+      const row = rowList[i];
+      const cells = row["w:tc"];
+      const cellList = cells ? (Array.isArray(cells) ? cells : [cells]) : [];
+
+      // Get the code from the configured column
+      const codeCell = cellList[codeColumn - 1]; // 1-indexed to 0-indexed
+      if (codeCell) {
+        let code = extractText(codeCell).trim();
+        
+        // Clean up the code - remove BWA prefix if present
+        if (code.toUpperCase().startsWith("BWA")) {
+          code = code.substring(3).trim();
+          code = code.replace(/^[-\s]+/, "");
+        }
+        
+        // Skip empty or too short codes
+        if (code && code.length >= 3 && !shouldSkip(code)) {
+          codes.push(code);
+        }
       }
     }
   }
-  
-  // Pattern 2: Look for standalone alphanumeric codes (common formats)
-  // Format: 2+ letters followed by numbers and optional suffixes
-  const standalonePattern = /\b([A-Z]{2,4}\d{2,6}[A-Z0-9\-]*)\b/g;
-  let match;
-  while ((match = standalonePattern.exec(text.toUpperCase())) !== null) {
-    const code = match[1];
-    if (code.length >= 4 && code.length <= 25) {
-      codes.add(code);
+
+  return codes;
+}
+
+/**
+ * Legacy extraction for BWA format (no supplier configured)
+ */
+async function extractCodesFromDocxLegacy(docxBuffer: Buffer): Promise<string[]> {
+  const zip = new PizZip(docxBuffer);
+  const codes: string[] = [];
+
+  const docFile = zip.file("word/document.xml");
+  if (!docFile) {
+    throw new Error("No document.xml found in DOCX");
+  }
+
+  const docXml = docFile.asText();
+  const docData = await parseStringPromise(docXml, { explicitArray: false });
+
+  const extractText = (node: any): string => {
+    if (!node) return "";
+    if (typeof node === "string") return node;
+    if (node["w:t"]) {
+      const t = node["w:t"];
+      if (typeof t === "string") return t;
+      if (typeof t === "object" && t._) return t._;
+      if (Array.isArray(t)) return t.map(extractText).join("");
+      return "";
+    }
+    if (node["w:r"]) {
+      const runs = Array.isArray(node["w:r"]) ? node["w:r"] : [node["w:r"]];
+      return runs.map(extractText).join("");
+    }
+    if (node["w:p"]) {
+      const paras = Array.isArray(node["w:p"]) ? node["w:p"] : [node["w:p"]];
+      return paras.map(extractText).join(" ");
+    }
+    return "";
+  };
+
+  const body = docData?.["w:document"]?.["w:body"];
+  if (!body) return codes;
+
+  const tables = body["w:tbl"];
+  const tableList = tables ? (Array.isArray(tables) ? tables : [tables]) : [];
+
+  for (const table of tableList) {
+    const rows = table["w:tr"];
+    const rowList = rows ? (Array.isArray(rows) ? rows : [rows]) : [];
+
+    for (let i = 1; i < rowList.length; i++) {
+      const row = rowList[i];
+      const cells = row["w:tc"];
+      const cellList = cells ? (Array.isArray(cells) ? cells : [cells]) : [];
+
+      for (const cell of cellList) {
+        const cellText = extractText(cell).trim();
+        
+        // Look for BWA codes or alphanumeric product codes
+        if (cellText.match(/^BWA/i) || cellText.match(/^[A-Z]{1,2}\d+\s+[A-Z0-9\-]/i)) {
+          let code = cellText;
+          
+          if (code.toUpperCase().startsWith("BWA")) {
+            code = code.substring(3).trim().replace(/^[-\s]+/, "");
+          }
+          
+          if (code && code.length >= 3 && !shouldSkip(code)) {
+            codes.push(code);
+          }
+        }
+      }
     }
   }
+
+  return codes;
+}
+
+/**
+ * Check if text should be skipped (headers, categories, etc.)
+ */
+function shouldSkip(text: string): boolean {
+  if (!text || text.length < 2) return true;
   
-  return Array.from(codes);
+  const upper = text.toUpperCase();
+  
+  if (text.match(/\d{4}\s?\d{3}\s?\d{3}/) || text.match(/\(\d{2}\)\s?\d{4}/)) {
+    return true;
+  }
+  
+  if (text.includes("@") || text.toLowerCase().includes(".com.au")) {
+    return true;
+  }
+  
+  const skipWords = [
+    "ABN", "PTY LTD", "LIMITED", "WAREHOUSE", "PHONE", "EMAIL", "FAX", 
+    "ADDRESS", "WWW.", "QTY", "QUANTITY", "PRICE", "TOTAL", "SUBTOTAL",
+    "PRODUCT NAME", "PRODUCT CODE", "DESCRIPTION", "UNIT PRICE", "PICTURE",
+    "DIMENSION", "GST", "EX GST", "INC GST"
+  ];
+  
+  if (skipWords.some(word => upper === word || upper.includes(word))) {
+    return true;
+  }
+  
+  const categories = [
+    "BASINS", "TAPS", "TOILETS", "SHOWERS", "BATHS", "VANITIES", 
+    "KITCHEN", "BATHROOM", "ACCESSORIES", "MIXERS", "SINKS", "MIXER",
+    "VANITY OPTIONS", "STONE TOP OPTIONS", "HANDLE OPTIONS"
+  ];
+  if (categories.includes(upper)) {
+    return true;
+  }
+  
+  return false;
 }
 
 /**
@@ -109,7 +262,7 @@ function extractGenericCodes(text: string): string[] {
  */
 function findFuzzyMatches(
   searchCode: string,
-  allProducts: Array<{ id: string; code: string; description: string; [key: string]: any }>
+  allProducts: Array<{ id: string; code: string; description: string }>
 ): Array<{ id: string; code: string; description: string; matchType: string }> {
   const normalizedSearch = searchCode.toUpperCase().replace(/[\s\-_.]/g, "");
   const matches: Array<{ product: any; score: number; matchType: string }> = [];
@@ -157,11 +310,7 @@ export async function POST(req: Request) {
     const supplierId = formData.get("supplierId")?.toString() || "";
 
     if (!file) {
-      return NextResponse.json({ error: "No PDF file provided" }, { status: 400 });
-    }
-
-    if (!file.type.includes("pdf") && !file.name.toLowerCase().endsWith(".pdf")) {
-      return NextResponse.json({ error: "File must be a PDF" }, { status: 400 });
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
     // Get supplier info if provided
@@ -170,34 +319,36 @@ export async function POST(req: Request) {
       supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const pdfData = await pdfParse(buffer);
-    const extractedText = pdfData.text;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const fileName = file.name.toLowerCase();
+    
+    // Convert PDF to DOCX using CloudConvert (same as import)
+    let docxBuffer: Buffer;
+    
+    if (fileName.endsWith(".pdf") || file.type.includes("pdf")) {
+      console.log("Converting PDF to DOCX...");
+      docxBuffer = await convertPdfToDocx(buffer);
+      console.log("Conversion complete");
+    } else if (fileName.endsWith(".docx")) {
+      docxBuffer = buffer;
+    } else {
+      return NextResponse.json({ error: "File must be a PDF or DOCX" }, { status: 400 });
+    }
 
-    // Extract codes based on supplier
+    // Extract codes using the same logic as import
     let extractedCodes: string[] = [];
     
-    if (supplier) {
-      const supplierNameLower = supplier.name.toLowerCase();
-      
-      // BWA-specific parsing
-      if (supplierNameLower.includes("bwa") || supplierNameLower.includes("builders warehouse")) {
-        extractedCodes = extractBWACodes(extractedText);
-        console.log("Using BWA parser, found:", extractedCodes.length, "codes");
-      } else {
-        // Generic parsing for other suppliers
-        extractedCodes = extractGenericCodes(extractedText);
-        console.log("Using generic parser, found:", extractedCodes.length, "codes");
-      }
+    if (supplier && supplier.columnMappings) {
+      const mappings = supplier.columnMappings as ColumnMapping[];
+      extractedCodes = await extractCodesFromDocx(docxBuffer, mappings, supplier.startRow);
+      console.log(`Extracted ${extractedCodes.length} codes using supplier "${supplier.name}" config`);
     } else {
-      // No supplier - try BWA first, then generic
-      extractedCodes = extractBWACodes(extractedText);
-      if (extractedCodes.length === 0) {
-        extractedCodes = extractGenericCodes(extractedText);
-      }
-      console.log("No supplier specified, found:", extractedCodes.length, "codes");
+      extractedCodes = await extractCodesFromDocxLegacy(docxBuffer);
+      console.log(`Extracted ${extractedCodes.length} codes using legacy parser`);
     }
+
+    // Remove duplicates
+    extractedCodes = [...new Set(extractedCodes)];
 
     if (extractedCodes.length === 0) {
       return NextResponse.json({
@@ -205,51 +356,54 @@ export async function POST(req: Request) {
         products: [],
         extractedCodes: [],
         suggestedMatches: {},
-        message: "No product codes found in PDF. Check that the supplier format is configured correctly.",
+        message: "No product codes found. Check that the supplier format is configured correctly.",
       });
     }
 
-    // Now find matching products in database
-    // Use WHERE IN for efficiency instead of loading all products
-    const normalizedCodes = extractedCodes.map(c => c.toUpperCase());
+    // Find matching products in database
+    const normalizedCodes = extractedCodes.map(c => c.toUpperCase().replace(/[\s\-_.]/g, ""));
     
-    const matchedProducts = await prisma.product.findMany({
-      where: {
-        OR: [
-          { code: { in: extractedCodes } },
-          { code: { in: normalizedCodes } },
-        ]
-      },
+    // Get all products and match by normalized code
+    const allDbProducts = await prisma.product.findMany({
       include: { type: true },
     });
 
-    // Build a map for quick lookup
-    const productMap = new Map(matchedProducts.map(p => [p.code.toUpperCase(), p]));
-    
-    const exactMatches: typeof matchedProducts = [];
+    // Create a normalized lookup map
+    const normalizedProductMap = new Map<string, typeof allDbProducts[0]>();
+    for (const product of allDbProducts) {
+      const normalized = product.code.toUpperCase().replace(/[\s\-_.]/g, "");
+      normalizedProductMap.set(normalized, product);
+    }
+
+    const exactMatches: typeof allDbProducts = [];
     const notFoundCodes: string[] = [];
+    const matchedIds = new Set<string>();
     
-    for (const code of extractedCodes) {
-      const product = productMap.get(code.toUpperCase());
-      if (product && !exactMatches.some(m => m.id === product.id)) {
+    for (let i = 0; i < extractedCodes.length; i++) {
+      const code = extractedCodes[i];
+      const normalized = normalizedCodes[i];
+      const product = normalizedProductMap.get(normalized);
+      
+      if (product && !matchedIds.has(product.id)) {
         exactMatches.push(product);
+        matchedIds.add(product.id);
       } else if (!product) {
         notFoundCodes.push(code);
       }
     }
 
-    // For not found codes, get fuzzy matches (only load products if needed)
+    // For not found codes, get fuzzy matches
     let suggestedMatches: Record<string, Array<{ id: string; code: string; description: string; matchType: string }>> = {};
     
     if (notFoundCodes.length > 0 && notFoundCodes.length <= 20) {
-      // Only do fuzzy matching if there aren't too many missing codes
-      const allProducts = await prisma.product.findMany({
-        select: { id: true, code: true, description: true },
-        take: 500, // Limit for performance
-      });
+      const productsForFuzzy = allDbProducts.map(p => ({
+        id: p.id,
+        code: p.code,
+        description: p.description,
+      }));
       
       for (const code of notFoundCodes) {
-        const fuzzy = findFuzzyMatches(code, allProducts);
+        const fuzzy = findFuzzyMatches(code, productsForFuzzy);
         if (fuzzy.length > 0) {
           suggestedMatches[code] = fuzzy;
         }
@@ -273,7 +427,6 @@ export async function POST(req: Request) {
       foundCodes: exactMatches.map((p) => p.code),
       notFoundCodes,
       suggestedMatches,
-      pageCount: pdfData.numpages,
       supplierUsed: supplier?.name || "auto-detect",
     });
   } catch (error: unknown) {
