@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SearchableDropdown } from "@/components/ui/searchable-dropdown";
+import { SearchableDropdownCreatable } from "@/components/ui/searchable-dropdown-creatable";
 
 type ApiProduct = {
   id: string;
@@ -17,6 +18,11 @@ type ApiProduct = {
 };
 
 type Area = {
+  id: string;
+  name: string;
+};
+
+type Supplier = {
   id: string;
   name: string;
 };
@@ -58,6 +64,8 @@ export default function ProductSheetApp() {
   const [address, setAddress] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [areas, setAreas] = useState<Area[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
   const [contactName, setContactName] = useState("");
   const [company, setCompany] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -119,6 +127,20 @@ export default function ProductSheetApp() {
       }
     };
     loadAreas();
+
+    // Load suppliers for import
+    const loadSuppliers = async () => {
+      try {
+        const resp = await fetch("/api/admin/suppliers");
+        if (resp.ok) {
+          const data = await resp.json();
+          setSuppliers(data.suppliers || []);
+        }
+      } catch {
+        // Silently fail
+      }
+    };
+    loadSuppliers();
   }, []);
 
   // Load saved selection if continuing
@@ -338,11 +360,10 @@ export default function ProductSheetApp() {
     setSelected((prev) => prev.map((s) => (s.id === id ? { ...s, [field]: value } : s)));
   };
 
-  const updateSelectedArea = (id: string, areaId: string) => {
-    const area = areas.find((a) => a.id === areaId);
+  const updateSelectedArea = (id: string, areaName: string, areaId?: string) => {
     setSelected((prev) =>
       prev.map((s) =>
-        s.id === id ? { ...s, areaId, areaName: area?.name || "" } : s
+        s.id === id ? { ...s, areaId: areaId || "", areaName } : s
       )
     );
   };
@@ -460,7 +481,7 @@ export default function ProductSheetApp() {
   const validate = () => {
     if (!address.trim()) return "Address is required";
     if (selected.length === 0) return "Select at least one product";
-    const missingArea = selected.find((p) => !p.areaId);
+    const missingArea = selected.find((p) => !p.areaName);
     if (missingArea) return `Please select an area for product: ${missingArea.code}`;
     return null;
   };
@@ -623,10 +644,33 @@ export default function ProductSheetApp() {
 
         {/* PDF Upload Zone */}
         <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-2">📄 Import from BWA PDF</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">📄 Import from Supplier Sheet</h2>
           <p className="text-sm text-slate-600 mb-4">
-            Upload a BWA quote/order PDF to automatically select matching products from your database.
+            Select a supplier and upload their quote/order PDF to automatically select matching products.
           </p>
+          
+          {/* Supplier Selection */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-slate-700 mb-1">Supplier (optional)</label>
+            <div className="flex gap-2 items-center">
+              <select
+                value={selectedSupplierId}
+                onChange={(e) => setSelectedSupplierId(e.target.value)}
+                className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+              >
+                <option value="">Any supplier (generic import)</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              {suppliers.length === 0 && (
+                <a href="/admin/suppliers" className="text-xs text-blue-600 hover:underline whitespace-nowrap">
+                  + Add suppliers
+                </a>
+              )}
+            </div>
+          </div>
+
           <div
             onDrop={handleDrop}
             onDragOver={handleDragOver}
@@ -676,7 +720,7 @@ export default function ProductSheetApp() {
                 )}
               </div>
               <p className="text-sm font-medium text-slate-700 mb-1">
-                {parsingPdf ? "Extracting products..." : isDragging ? "Drop PDF here" : "Upload BWA PDF"}
+                {parsingPdf ? "Extracting products..." : isDragging ? "Drop PDF here" : "Upload PDF"}
               </p>
               <p className="text-xs text-slate-500 text-center">
                 {parsingPdf ? "Matching product codes with database..." : "Drag and drop, or click to browse"}
@@ -1063,12 +1107,12 @@ export default function ProductSheetApp() {
                   <div className="mt-3 grid grid-cols-[1fr_80px_1fr] gap-3">
                     <div>
                       <label className="block text-xs text-slate-500 mb-1">Area *</label>
-                      <SearchableDropdown
+                      <SearchableDropdownCreatable
                         options={areas}
-                        value={item.areaId}
-                        onChange={(id) => updateSelectedArea(item.id, id)}
-                        placeholder="Select area..."
-                        error={!item.areaId}
+                        value={item.areaName}
+                        onChange={(name, id) => updateSelectedArea(item.id, name, id)}
+                        placeholder="Select or type area..."
+                        error={!item.areaName}
                       />
                     </div>
                     <div>
