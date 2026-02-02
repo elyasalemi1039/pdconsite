@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     
     if (image && image.size > 0) {
       const buffer = Buffer.from(await image.arrayBuffer());
-      const key = `products/bwa-${code}-${Date.now()}-${image.name || "image.png"}`;
+      const key = `products/import-${code}-${Date.now()}-${image.name || "image.png"}`;
 
       await uploadToR2({
         key,

@@ -20,7 +20,7 @@ export default async function CreateProductPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Link href="/admin/bwa">
+            <Link href="/admin/product-import">
               <Button className="gap-1 bg-amber-500 hover:bg-amber-600 text-white animate-pulse">
                 📥 Import from Supplier
               </Button>

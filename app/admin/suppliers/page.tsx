@@ -215,7 +215,7 @@ export default function SuppliersPage() {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g., BWA Supplies, ABC Tiles"
+                  placeholder="e.g., Supplier Name, ABC Tiles"
                   className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                   required
                 />

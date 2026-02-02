@@ -80,7 +80,7 @@ export default function ProductImportPage() {
       formData.append("file", file);
       formData.append("supplierId", selectedSupplierId);
       
-      const res = await fetch("/api/admin/bwa/extract", {
+      const res = await fetch("/api/admin/product-import/extract", {
         method: "POST",
         body: formData,
       });
@@ -168,7 +168,7 @@ export default function ProductImportPage() {
               formData.append("image", blob, `${r.code}.png`);
             }
 
-            const res = await fetch("/api/admin/products/bwa", {
+            const res = await fetch("/api/admin/products/import", {
               method: "POST",
               body: formData,
             });
