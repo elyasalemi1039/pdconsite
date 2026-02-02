@@ -1159,6 +1159,21 @@ export default function ProductSheetApp() {
           </div>
         )}
 
+        {/* Bottom Message */}
+        {message && (
+          <div
+            className={`rounded-lg px-4 py-3 text-sm ${
+              message.type === "success"
+                ? "bg-green-100 border border-green-300 text-green-800"
+                : message.type === "info"
+                ? "bg-blue-100 border border-blue-300 text-blue-800"
+                : "bg-red-100 border border-red-300 text-red-800"
+            }`}
+          >
+            {message.text}
+          </div>
+        )}
+
         {/* Generate Button */}
         <div className="flex items-center justify-end gap-4">
           <label className="flex items-center gap-2 cursor-pointer">
