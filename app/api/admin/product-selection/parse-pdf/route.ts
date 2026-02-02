@@ -147,6 +147,7 @@ async function extractCodesFromDocx(
 
 /**
  * Legacy extraction for BWA format (no supplier configured)
+ * This looks for BWA codes in table cells and tries to match any alphanumeric codes
  */
 async function extractCodesFromDocxLegacy(docxBuffer: Buffer): Promise<string[]> {
   const zip = new PizZip(docxBuffer);
@@ -199,13 +200,43 @@ async function extractCodesFromDocxLegacy(docxBuffer: Buffer): Promise<string[]>
       for (const cell of cellList) {
         const cellText = extractText(cell).trim();
         
-        // Look for BWA codes or alphanumeric product codes
-        if (cellText.match(/^BWA/i) || cellText.match(/^[A-Z]{1,2}\d+\s+[A-Z0-9\-]/i)) {
-          let code = cellText;
-          
-          if (code.toUpperCase().startsWith("BWA")) {
-            code = code.substring(3).trim().replace(/^[-\s]+/, "");
+        // Look for BWA codes (BWA prefix followed by code)
+        if (cellText.match(/^BWA\s+/i)) {
+          let code = cellText.replace(/^BWA\s+/i, "").trim();
+          // Remove trailing description words
+          const parts = code.split(/\s+/);
+          const codeWords: string[] = [];
+          for (const part of parts) {
+            // Keep alphanumeric code parts, stop at descriptive words
+            if (/^[A-Z0-9][A-Z0-9\-_.]*$/i.test(part) && part.length <= 20) {
+              codeWords.push(part);
+              // Stop if we hit a dimension (4 digits)
+              if (/^\d{3,4}$/.test(part)) break;
+            } else {
+              break;
+            }
           }
+          code = codeWords.join(" ").replace(/\s*-\s*/g, "-").trim();
+          
+          if (code && code.length >= 3 && !shouldSkip(code)) {
+            codes.push(code);
+          }
+        }
+        // Also look for standalone alphanumeric codes like "A8 CWH66-900WM"
+        else if (cellText.match(/^[A-Z]\d+\s+[A-Z0-9]/i)) {
+          let code = cellText;
+          // Stop at descriptive words
+          const parts = code.split(/\s+/);
+          const codeWords: string[] = [];
+          for (const part of parts) {
+            if (/^[A-Z0-9][A-Z0-9\-_.]*$/i.test(part) && part.length <= 20) {
+              codeWords.push(part);
+              if (/^\d{3,4}$/.test(part)) break;
+            } else {
+              break;
+            }
+          }
+          code = codeWords.join(" ").replace(/\s*-\s*/g, "-").trim();
           
           if (code && code.length >= 3 && !shouldSkip(code)) {
             codes.push(code);
@@ -340,8 +371,21 @@ export async function POST(req: Request) {
     
     if (supplier && supplier.columnMappings) {
       const mappings = supplier.columnMappings as ColumnMapping[];
-      extractedCodes = await extractCodesFromDocx(docxBuffer, mappings, supplier.startRow);
-      console.log(`Extracted ${extractedCodes.length} codes using supplier "${supplier.name}" config`);
+      // Check if mappings include a 'code' column
+      const hasCodeColumn = mappings.some(m => m.field === "code");
+      
+      if (hasCodeColumn) {
+        try {
+          extractedCodes = await extractCodesFromDocx(docxBuffer, mappings, supplier.startRow || 2);
+          console.log(`Extracted ${extractedCodes.length} codes using supplier "${supplier.name}" config`);
+        } catch (err) {
+          console.log(`Supplier extraction failed, falling back to legacy: ${err}`);
+          extractedCodes = await extractCodesFromDocxLegacy(docxBuffer);
+        }
+      } else {
+        console.log(`Supplier has no 'code' column mapped, using legacy parser`);
+        extractedCodes = await extractCodesFromDocxLegacy(docxBuffer);
+      }
     } else {
       extractedCodes = await extractCodesFromDocxLegacy(docxBuffer);
       console.log(`Extracted ${extractedCodes.length} codes using legacy parser`);

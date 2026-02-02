@@ -60,8 +60,7 @@ export function SearchableDropdownCreatable({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setSearch(newValue);
-    // Allow typing custom values - update the actual value as they type
-    onChange(newValue);
+    // Don't call onChange while typing - only on blur/enter/select
   };
 
   const handleOpen = () => {

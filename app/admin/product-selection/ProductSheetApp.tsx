@@ -1166,28 +1166,36 @@ function SelectedProductsOrganizer({
   const hasAnyAreas = usedAreaNames.length > 0;
 
   // Drag handlers
-  const handleDragStart = (e: React.DragEvent, productId: string) => {
-    setDraggedId(productId);
+  const handleDragStart = useCallback((e: React.DragEvent, productId: string) => {
+    // Set data immediately before any state changes
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", productId);
-  };
+    
+    // Create a custom drag image
+    const dragEl = e.currentTarget as HTMLElement;
+    const rect = dragEl.getBoundingClientRect();
+    e.dataTransfer.setDragImage(dragEl, rect.width / 2, 20);
+    
+    // Delay state update to prevent re-render interrupting drag
+    setTimeout(() => setDraggedId(productId), 0);
+  }, []);
 
-  const handleDragEnd = () => {
+  const handleDragEnd = useCallback(() => {
     setDraggedId(null);
     setDragOverArea(null);
-  };
+  }, []);
 
-  const handleDragOver = (e: React.DragEvent, areaName: string) => {
+  const handleDragOver = useCallback((e: React.DragEvent, areaName: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     setDragOverArea(areaName);
-  };
+  }, []);
 
-  const handleDragLeave = () => {
+  const handleDragLeave = useCallback(() => {
     setDragOverArea(null);
-  };
+  }, []);
 
-  const handleDrop = (e: React.DragEvent, areaName: string) => {
+  const handleDrop = useCallback((e: React.DragEvent, areaName: string) => {
     e.preventDefault();
     const productId = e.dataTransfer.getData("text/plain");
     if (productId) {
@@ -1197,7 +1205,7 @@ function SelectedProductsOrganizer({
     }
     setDragOverArea(null);
     setDraggedId(null);
-  };
+  }, [areas, updateSelectedArea]);
 
   // Render a single product card (compact, draggable)
   const ProductCard = ({ item, showAreaDropdown = false }: { item: SelectedProduct; showAreaDropdown?: boolean }) => (
