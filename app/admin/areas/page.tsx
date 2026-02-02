@@ -29,23 +29,46 @@ export default function AreasPage() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    
+    // Split by comma to support multiple areas
+    const areaNames = name
+      .split(",")
+      .map((n) => n.trim())
+      .filter((n) => n.length > 0);
+    
+    if (areaNames.length === 0) return;
+    
     setLoading(true);
+    let successCount = 0;
+    let errorCount = 0;
+    const errors: string[] = [];
+    
     try {
-      const res = await fetch("/api/admin/areas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data?.error || "Failed to create area");
-      } else {
-        toast.success("Area created");
+      for (const areaName of areaNames) {
+        const res = await fetch("/api/admin/areas", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: areaName }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorCount++;
+          errors.push(data?.error || `Failed to create "${areaName}"`);
+        } else {
+          successCount++;
+        }
+      }
+      
+      if (successCount > 0) {
+        toast.success(`${successCount} area${successCount > 1 ? "s" : ""} created`);
         setName("");
         loadAreas();
       }
+      if (errorCount > 0) {
+        toast.error(errors.join(", "));
+      }
     } catch {
-      toast.error("Failed to create area");
+      toast.error("Failed to create areas");
     } finally {
       setLoading(false);
     }
@@ -126,7 +149,7 @@ export default function AreasPage() {
         >
           <input
             className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-            placeholder="New area name (e.g. Kitchen, Bathroom)"
+            placeholder="Area names (comma-separated, e.g. Kitchen, Bathroom, Garage)"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
@@ -135,7 +158,10 @@ export default function AreasPage() {
             className="rounded bg-amber-500 text-white px-4 py-2 text-sm font-medium hover:bg-amber-600 disabled:opacity-50"
             disabled={loading || !name.trim()}
           >
-            Add
+            {(() => {
+              const count = name.split(",").map(n => n.trim()).filter(n => n.length > 0).length;
+              return count > 1 ? `Add ${count}` : "Add";
+            })()}
           </button>
         </form>
 
