@@ -37,21 +37,12 @@ export default async function AdminPage() {
             <span className="text-xl">📦</span>
             <h2 className="text-lg font-semibold text-slate-900">Products</h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Link href="/admin/create-product" className="w-full">
               <Button variant="outline" className="w-full">Create Product</Button>
             </Link>
             <Link href="/admin/view-products" className="w-full">
               <Button variant="outline" className="w-full">View Products</Button>
-            </Link>
-            <Link href="/admin/product-types" className="w-full">
-              <Button variant="outline" className="w-full">Manage Types</Button>
-            </Link>
-            <Link href="/admin/areas" className="w-full">
-              <Button variant="outline" className="w-full">Manage Areas</Button>
-            </Link>
-            <Link href="/admin/suppliers" className="w-full">
-              <Button variant="outline" className="w-full">Manage Suppliers</Button>
             </Link>
           </div>
         </div>
@@ -64,10 +55,29 @@ export default async function AdminPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Link href="/admin/product-selection" className="w-full">
-              <Button variant="outline" className="w-full">Create Product Selection</Button>
+              <Button className="w-full bg-amber-500 hover:bg-amber-600 text-white">Create Product Selection</Button>
             </Link>
             <Link href="/admin/saved-selections" className="w-full">
               <Button variant="outline" className="w-full">Saved Selections</Button>
+            </Link>
+          </div>
+        </div>
+
+        {/* Manage Section */}
+        <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">⚙️</span>
+            <h2 className="text-lg font-semibold text-slate-900">Manage</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Link href="/admin/product-types" className="w-full">
+              <Button variant="outline" className="w-full">Product Types</Button>
+            </Link>
+            <Link href="/admin/areas" className="w-full">
+              <Button variant="outline" className="w-full">Areas</Button>
+            </Link>
+            <Link href="/admin/suppliers" className="w-full">
+              <Button variant="outline" className="w-full">Suppliers</Button>
             </Link>
           </div>
         </div>

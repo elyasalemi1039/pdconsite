@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
+import { SearchableDropdown } from "@/components/ui/searchable-dropdown";
 
 type ProductType = {
   id: string;
@@ -249,17 +250,15 @@ export default function CreateProductForm() {
                     placeholder="Product Code *"
                     required
                   />
-                  <select
-                    className="w-36 rounded border border-slate-300 px-2 py-2 text-sm bg-white focus:ring-2 focus:ring-amber-500"
-                    value={form.typeId}
-                    onChange={(e) => updateForm(form.id, { typeId: e.target.value })}
-                    required
-                  >
-                    <option value="">Type *</option>
-                    {productTypes.map((opt) => (
-                      <option key={opt.id} value={opt.id}>{opt.name}</option>
-                    ))}
-                  </select>
+                  <div className="w-40">
+                    <SearchableDropdown
+                      options={productTypes}
+                      value={form.typeId}
+                      onChange={(id) => updateForm(form.id, { typeId: id })}
+                      placeholder="Type *"
+                      error={!form.typeId}
+                    />
+                  </div>
                 </div>
 
                 <input

@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SearchableDropdown } from "@/components/ui/searchable-dropdown";
 
 type ApiProduct = {
   id: string;
@@ -136,7 +137,8 @@ export default function ProductSheetApp() {
         const selection = data.selection;
 
         if (selection) {
-          setSelectionId(selection.id);
+          // Don't set selectionId - we want to save as NEW when editing a loaded selection
+          // setSelectionId(selection.id);
           setAddress(selection.address || "");
           setDate(selection.date || new Date().toISOString().split("T")[0]);
           setContactName(selection.contactName || "");
@@ -149,7 +151,7 @@ export default function ProductSheetApp() {
             setSelected(selection.products);
           }
 
-          setMessage({ type: "success", text: "Selection loaded successfully" });
+          setMessage({ type: "info", text: "Selection loaded - changes will save as a new selection" });
         }
       } catch (err) {
         setMessage({
@@ -533,6 +535,9 @@ export default function ProductSheetApp() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
+      // Auto-save selection after successful generation
+      await saveSelection(false);
+      
       setMessage({ type: "success", text: "Document generated and downloaded." });
     } catch (err) {
       setMessage({
@@ -1058,18 +1063,13 @@ export default function ProductSheetApp() {
                   <div className="mt-3 grid grid-cols-[1fr_80px_1fr] gap-3">
                     <div>
                       <label className="block text-xs text-slate-500 mb-1">Area *</label>
-                      <select
+                      <SearchableDropdown
+                        options={areas}
                         value={item.areaId}
-                        onChange={(e) => updateSelectedArea(item.id, e.target.value)}
-                        className={`w-full rounded-md border px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 ${
-                          !item.areaId ? "border-red-300 bg-red-50" : "border-slate-300"
-                        }`}
-                      >
-                        <option value="">Select area...</option>
-                        {areas.map((area) => (
-                          <option key={area.id} value={area.id}>{area.name}</option>
-                        ))}
-                      </select>
+                        onChange={(id) => updateSelectedArea(item.id, id)}
+                        placeholder="Select area..."
+                        error={!item.areaId}
+                      />
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 mb-1">Qty</label>
